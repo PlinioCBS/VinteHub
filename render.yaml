@@ -2,7 +2,7 @@ services:
   - type: web
     name: vinte-hub-backend
     runtime: node
-    buildCommand: npm install && cd frontend && npm install --include=dev && npm run build && cd ..
+    buildCommand: npm install
     startCommand: node server.js
     plan: free
     disk:
