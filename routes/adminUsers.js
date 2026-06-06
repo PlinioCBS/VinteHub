@@ -1,26 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const path = require('path');
-const fs = require('fs');
 const multer = require('multer');
 const { query } = require('../db');
 
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadsDir = process.env.UPLOADS_PATH
-      ? path.join(process.env.UPLOADS_PATH, 'photos')
-      : path.join(__dirname, '../uploads/photos');
-    require('fs').mkdirSync(uploadsDir, { recursive: true });
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `${req.params.id}${ext}`);
-  }
-});
 const photoUpload = multer({
-  storage: photoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (/image\/(jpeg|png|webp)/.test(file.mimetype)) cb(null, true);
@@ -223,8 +208,8 @@ router.patch('/:id/toggle', requireMaster, async (req, res) => {
 router.post('/:id/photo', requireMaster, photoUpload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
-    const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
-    const photo_url = `/uploads/photos/${req.params.id}${ext}`;
+    const b64 = req.file.buffer.toString('base64');
+    const photo_url = `data:${req.file.mimetype};base64,${b64}`;
     await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photo_url, req.params.id]);
     res.json({ photo_url });
   } catch (err) {
@@ -235,11 +220,6 @@ router.post('/:id/photo', requireMaster, photoUpload.single('photo'), async (req
 // DELETE /:id/photo
 router.delete('/:id/photo', requireMaster, async (req, res) => {
   try {
-    const user = (await query('SELECT photo_url FROM users WHERE id = $1', [req.params.id])).rows[0];
-    if (user?.photo_url) {
-      const filePath = path.join(__dirname, '..', user.photo_url);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    }
     await query('UPDATE users SET photo_url = NULL WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {

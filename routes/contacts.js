@@ -7,7 +7,7 @@ const FUNNEL_ORDER = ['prospecting', 'qualificacao', 'proposta', 'negociacao', '
 // GET / - list contacts
 router.get('/', async (req, res) => {
   try {
-    const { search, status, crm_type } = req.query;
+    const { search, status, excludeStatus, crm_type } = req.query;
     const isMaster = req.user.role === 'master';
     let sql = 'SELECT * FROM contacts WHERE 1=1';
     const params = [];
@@ -22,6 +22,10 @@ router.get('/', async (req, res) => {
     if (status) {
       sql += ` AND status = $${idx++}`;
       params.push(status);
+    }
+    if (!status && excludeStatus) {
+      sql += ` AND status != $${idx++}`;
+      params.push(excludeStatus);
     }
     if (crm_type) {
       sql += ` AND crm_type = $${idx++}`;
