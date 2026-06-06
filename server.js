@@ -19,9 +19,6 @@ const productsRouter = require('./routes/products');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Init DB
-initDB();
-
 // Middleware
 const allowedOrigins = [
   'http://localhost:3000',
@@ -33,7 +30,6 @@ const allowedOrigins = [
 ];
 app.use(cors({
   origin: (origin, callback) => {
-    // Permite requests sem origin (mobile, Postman) e origins permitidas
     if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
       callback(null, true);
     } else {
@@ -57,7 +53,6 @@ app.use('/api/auth', (req, res, next) => {
 
 // Apply auth middleware to all other /api/* routes
 app.use('/api', (req, res, next) => {
-  // Skip /api/auth/* entirely (handled above)
   if (req.path.startsWith('/auth')) return next();
   authMiddleware(req, res, next);
 });
@@ -93,6 +88,14 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Vinte Brava CRM Backend running on http://localhost:${PORT}`);
-});
+// Init DB then start server
+initDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Vinte Brava CRM Backend running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });

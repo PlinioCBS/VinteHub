@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { getDB } = require('../db');
+const { query } = require('../db');
 
 const photoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -28,7 +28,6 @@ const photoUpload = multer({
   }
 });
 
-// Master-only guard
 function requireMaster(req, res, next) {
   if (req.user.role !== 'master') {
     return res.status(403).json({ error: 'Acesso restrito ao master' });
@@ -36,74 +35,66 @@ function requireMaster(req, res, next) {
   next();
 }
 
-// Helper: get per-CRM commissions for a user
-function getCRMCommissions(db, userId) {
-  const rows = db.prepare('SELECT crm_type, commission_percent FROM user_crm_commissions WHERE user_id = ?').all(userId);
+async function getCRMCommissions(userId) {
+  const rows = (await query('SELECT crm_type, commission_percent FROM user_crm_commissions WHERE user_id = $1', [userId])).rows;
   const result = {};
   for (const r of rows) result[r.crm_type] = r.commission_percent;
   return result;
 }
 
-// Helper: upsert per-CRM commissions
-function saveCRMCommissions(db, userId, crm_commissions) {
+async function saveCRMCommissions(userId, crm_commissions) {
   if (!crm_commissions || typeof crm_commissions !== 'object') return;
-  const upsert = db.prepare(`
-    INSERT INTO user_crm_commissions (user_id, crm_type, commission_percent)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id, crm_type) DO UPDATE SET commission_percent = excluded.commission_percent
-  `);
   for (const [crm, pct] of Object.entries(crm_commissions)) {
     let value = parseFloat(pct) || 0;
-    // Validação: comissão não pode ultrapassar 100%
     if (value > 100) value = 100;
     if (value < 0) value = 0;
-    upsert.run(userId, crm, value);
+    await query(`
+      INSERT INTO user_crm_commissions (user_id, crm_type, commission_percent)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, crm_type) DO UPDATE SET commission_percent = EXCLUDED.commission_percent
+    `, [userId, crm, value]);
   }
 }
 
-// GET / - list all users with per-CRM commissions + client stats
-router.get('/', requireMaster, (req, res) => {
+// GET / - list all users
+router.get('/', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
-    const users = db.prepare('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users ORDER BY created_at DESC').all();
+    const users = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users ORDER BY created_at DESC')).rows;
 
-    const result = users.map(u => {
-      // Clientes ativos por CRM
-      const clientsByCRM = db.prepare(`
+    const result = await Promise.all(users.map(async (u) => {
+      const clientsByCRM = (await query(`
         SELECT crm_type, COUNT(*) as count
         FROM contacts
-        WHERE user_id = ? AND status = 'cliente'
+        WHERE user_id = $1 AND status = 'cliente'
         GROUP BY crm_type
-      `).all(u.id);
+      `, [u.id])).rows;
 
       const clientsMap = {};
       let totalClients = 0;
       for (const row of clientsByCRM) {
-        clientsMap[row.crm_type] = row.count;
-        totalClients += row.count;
+        clientsMap[row.crm_type] = parseInt(row.count);
+        totalClients += parseInt(row.count);
       }
 
-      // Prospects (não clientes, não inativos)
-      const totalProspects = db.prepare(`
+      const totalProspects = parseInt((await query(`
         SELECT COUNT(*) as count FROM contacts
-        WHERE user_id = ? AND status NOT IN ('cliente', 'inativo')
-      `).get(u.id)?.count || 0;
+        WHERE user_id = $1 AND status NOT IN ('cliente', 'inativo')
+      `, [u.id])).rows[0].count) || 0;
 
-      // Deals abertos
-      const openDeals = db.prepare(`
+      const openDeals = parseInt((await query(`
         SELECT COUNT(*) as count FROM deals
-        WHERE user_id = ? AND stage NOT IN ('fechado_ganho', 'fechado_perdido')
-      `).get(u.id)?.count || 0;
+        WHERE user_id = $1 AND stage NOT IN ('fechado_ganho', 'fechado_perdido')
+      `, [u.id])).rows[0].count) || 0;
 
       return {
         ...u,
-        crm_commissions: getCRMCommissions(db, u.id),
+        crm_commissions: await getCRMCommissions(u.id),
         active_clients: totalClients,
         clients_by_crm: clientsMap,
         total_prospects: totalProspects,
         open_deals: openDeals,
       };
-    });
+    }));
 
     res.json(result);
   } catch (err) {
@@ -112,30 +103,29 @@ router.get('/', requireMaster, (req, res) => {
 });
 
 // POST / - create user
-router.post('/', requireMaster, (req, res) => {
+router.post('/', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
     const { name, email, password, role = 'employee', crm_access = 'all', commission_percent = 0, active = 1 } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
     }
 
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = await bcrypt.hash(password, 10);
     const crmAccessStr = Array.isArray(crm_access) ? JSON.stringify(crm_access) : crm_access;
 
-    const result = db.prepare(`
+    const result = await query(`
       INSERT INTO users (name, email, password_hash, role, crm_access, commission_percent, active)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(name, email.trim().toLowerCase(), hash, role, crmAccessStr, commission_percent, active ? 1 : 0);
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
+    `, [name, email.trim().toLowerCase(), hash, role, crmAccessStr, commission_percent, active ? 1 : 0]);
 
-    const newId = result.lastInsertRowid;
-    if (req.body.crm_commissions) saveCRMCommissions(db, newId, req.body.crm_commissions);
+    const newId = result.rows[0].id;
+    if (req.body.crm_commissions) await saveCRMCommissions(newId, req.body.crm_commissions);
 
-    const user = db.prepare('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = ?').get(newId);
-    res.status(201).json({ ...user, crm_commissions: getCRMCommissions(db, newId) });
+    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = $1', [newId])).rows[0];
+    res.status(201).json({ ...user, crm_commissions: await getCRMCommissions(newId) });
   } catch (err) {
-    if (err.message.includes('UNIQUE')) {
+    if (err.message.includes('unique') || err.message.includes('UNIQUE') || err.code === '23505') {
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
     res.status(500).json({ error: err.message });
@@ -143,21 +133,20 @@ router.post('/', requireMaster, (req, res) => {
 });
 
 // PUT /:id - edit user
-router.put('/:id', requireMaster, (req, res) => {
+router.put('/:id', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
     const { name, email, password, role, crm_access, commission_percent, active } = req.body;
 
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    const existing = (await query('SELECT * FROM users WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    const hash = password ? bcrypt.hashSync(password, 10) : existing.password_hash;
+    const hash = password ? await bcrypt.hash(password, 10) : existing.password_hash;
     const crmAccessStr = Array.isArray(crm_access) ? JSON.stringify(crm_access) : (crm_access || existing.crm_access);
 
-    db.prepare(`
-      UPDATE users SET name=?, email=?, password_hash=?, role=?, crm_access=?, commission_percent=?, active=?
-      WHERE id=?
-    `).run(
+    await query(`
+      UPDATE users SET name=$1, email=$2, password_hash=$3, role=$4, crm_access=$5, commission_percent=$6, active=$7
+      WHERE id=$8
+    `, [
       name || existing.name,
       (email || existing.email).trim().toLowerCase(),
       hash,
@@ -166,83 +155,77 @@ router.put('/:id', requireMaster, (req, res) => {
       commission_percent !== undefined ? commission_percent : existing.commission_percent,
       active !== undefined ? (active ? 1 : 0) : existing.active,
       req.params.id
-    );
+    ]);
 
-    if (req.body.crm_commissions) saveCRMCommissions(db, req.params.id, req.body.crm_commissions);
+    if (req.body.crm_commissions) await saveCRMCommissions(req.params.id, req.body.crm_commissions);
 
-    const user = db.prepare('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = ?').get(req.params.id);
-    res.json({ ...user, crm_commissions: getCRMCommissions(db, req.params.id) });
+    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = $1', [req.params.id])).rows[0];
+    res.json({ ...user, crm_commissions: await getCRMCommissions(req.params.id) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE /:id
-router.delete('/:id', requireMaster, (req, res) => {
+router.delete('/:id', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
-    // Prevent deleting self
     if (parseInt(req.params.id) === req.user.id) {
       return res.status(400).json({ error: 'Não é possível excluir a própria conta' });
     }
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PATCH /:id/commission - update global commission
-router.patch('/:id/commission', requireMaster, (req, res) => {
+// PATCH /:id/commission
+router.patch('/:id/commission', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
     const { commission_percent } = req.body;
-    db.prepare('UPDATE users SET commission_percent = ? WHERE id = ?').run(commission_percent, req.params.id);
+    await query('UPDATE users SET commission_percent = $1 WHERE id = $2', [commission_percent, req.params.id]);
     res.json({ success: true, commission_percent });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PATCH /:id/crm-commission - update commission for a specific CRM
-router.patch('/:id/crm-commission', requireMaster, (req, res) => {
+// PATCH /:id/crm-commission
+router.patch('/:id/crm-commission', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type, commission_percent } = req.body;
     if (!crm_type) return res.status(400).json({ error: 'crm_type obrigatório' });
-    db.prepare(`
+    await query(`
       INSERT INTO user_crm_commissions (user_id, crm_type, commission_percent)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id, crm_type) DO UPDATE SET commission_percent = excluded.commission_percent
-    `).run(req.params.id, crm_type, parseFloat(commission_percent) || 0);
+      VALUES ($1,$2,$3)
+      ON CONFLICT (user_id, crm_type) DO UPDATE SET commission_percent = EXCLUDED.commission_percent
+    `, [req.params.id, crm_type, parseFloat(commission_percent) || 0]);
     res.json({ success: true, crm_type, commission_percent });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PATCH /:id/toggle - toggle active
-router.patch('/:id/toggle', requireMaster, (req, res) => {
+// PATCH /:id/toggle
+router.patch('/:id/toggle', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
-    const user = db.prepare('SELECT active FROM users WHERE id = ?').get(req.params.id);
+    const user = (await query('SELECT active FROM users WHERE id = $1', [req.params.id])).rows[0];
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     const newActive = user.active ? 0 : 1;
-    db.prepare('UPDATE users SET active = ? WHERE id = ?').run(newActive, req.params.id);
+    await query('UPDATE users SET active = $1 WHERE id = $2', [newActive, req.params.id]);
     res.json({ success: true, active: newActive });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /:id/photo - upload photo
-router.post('/:id/photo', requireMaster, photoUpload.single('photo'), (req, res) => {
+// POST /:id/photo
+router.post('/:id/photo', requireMaster, photoUpload.single('photo'), async (req, res) => {
   try {
-    const db = getDB();
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
     const photo_url = `/uploads/photos/${req.params.id}${ext}`;
-    db.prepare('UPDATE users SET photo_url = ? WHERE id = ?').run(photo_url, req.params.id);
+    await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photo_url, req.params.id]);
     res.json({ photo_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -250,27 +233,25 @@ router.post('/:id/photo', requireMaster, photoUpload.single('photo'), (req, res)
 });
 
 // DELETE /:id/photo
-router.delete('/:id/photo', requireMaster, (req, res) => {
+router.delete('/:id/photo', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
-    const user = db.prepare('SELECT photo_url FROM users WHERE id = ?').get(req.params.id);
+    const user = (await query('SELECT photo_url FROM users WHERE id = $1', [req.params.id])).rows[0];
     if (user?.photo_url) {
       const filePath = path.join(__dirname, '..', user.photo_url);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
-    db.prepare('UPDATE users SET photo_url = NULL WHERE id = ?').run(req.params.id);
+    await query('UPDATE users SET photo_url = NULL WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PATCH /:id/salary - update base salary
-router.patch('/:id/salary', requireMaster, (req, res) => {
+// PATCH /:id/salary
+router.patch('/:id/salary', requireMaster, async (req, res) => {
   try {
-    const db = getDB();
     const { base_salary } = req.body;
-    db.prepare('UPDATE users SET base_salary = ? WHERE id = ?').run(parseFloat(base_salary) || 0, req.params.id);
+    await query('UPDATE users SET base_salary = $1 WHERE id = $2', [parseFloat(base_salary) || 0, req.params.id]);
     res.json({ success: true, base_salary });
   } catch (err) {
     res.status(500).json({ error: err.message });

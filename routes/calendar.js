@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { google } = require('googleapis');
-const { getDB } = require('../db');
+const { query } = require('../db');
 
 function getOAuth2Client() {
   return new google.auth.OAuth2(
@@ -11,25 +11,28 @@ function getOAuth2Client() {
   );
 }
 
-function getTokens(db) {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('google_tokens');
+async function getTokens() {
+  const row = (await query('SELECT value FROM settings WHERE key = $1', ['google_tokens'])).rows[0];
   if (!row) return null;
   try { return JSON.parse(row.value); } catch { return null; }
 }
 
-function saveTokens(db, tokens) {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('google_tokens', JSON.stringify(tokens));
+async function saveTokens(tokens) {
+  await query(
+    'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+    ['google_tokens', JSON.stringify(tokens)]
+  );
 }
 
-async function getAuthedClient(db) {
-  const tokens = getTokens(db);
+async function getAuthedClient() {
+  const tokens = await getTokens();
   if (!tokens) return null;
   const auth = getOAuth2Client();
   auth.setCredentials(tokens);
   if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
     try {
       const { credentials } = await auth.refreshAccessToken();
-      saveTokens(db, credentials);
+      await saveTokens(credentials);
       auth.setCredentials(credentials);
     } catch { return null; }
   }
@@ -37,10 +40,9 @@ async function getAuthedClient(db) {
 }
 
 // GET /status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const db = getDB();
-    const tokens = getTokens(db);
+    const tokens = await getTokens();
     const configured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET &&
       !process.env.GOOGLE_CLIENT_ID.includes('seu_client_id'));
     res.json({ connected: !!tokens, configured });
@@ -68,10 +70,9 @@ router.get('/auth-url', (req, res) => {
 router.get('/callback', async (req, res) => {
   try {
     const { code } = req.query;
-    const db = getDB();
     const auth = getOAuth2Client();
     const { tokens } = await auth.getToken(code);
-    saveTokens(db, tokens);
+    await saveTokens(tokens);
     res.redirect('http://localhost:3000/calendario?calendar=connected');
   } catch (err) {
     res.redirect('http://localhost:3000/calendario?calendar=error');
@@ -79,10 +80,9 @@ router.get('/callback', async (req, res) => {
 });
 
 // POST /disconnect
-router.post('/disconnect', (req, res) => {
+router.post('/disconnect', async (req, res) => {
   try {
-    const db = getDB();
-    db.prepare('DELETE FROM settings WHERE key = ?').run('google_tokens');
+    await query('DELETE FROM settings WHERE key = $1', ['google_tokens']);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -92,15 +92,15 @@ router.post('/disconnect', (req, res) => {
 // GET /events
 router.get('/events', async (req, res) => {
   try {
-    const db = getDB();
     const { contact_id, from, to } = req.query;
-    let query = 'SELECT e.*, c.name as contact_name FROM calendar_events e LEFT JOIN contacts c ON e.contact_id = c.id WHERE 1=1';
+    let sql = 'SELECT e.*, c.name as contact_name FROM calendar_events e LEFT JOIN contacts c ON e.contact_id = c.id WHERE 1=1';
     const params = [];
-    if (contact_id) { query += ' AND e.contact_id = ?'; params.push(contact_id); }
-    if (from) { query += ' AND e.start_time >= ?'; params.push(from); }
-    if (to) { query += ' AND e.start_time <= ?'; params.push(to); }
-    query += ' ORDER BY e.start_time ASC';
-    const events = db.prepare(query).all(...params);
+    let idx = 1;
+    if (contact_id) { sql += ` AND e.contact_id = $${idx++}`; params.push(contact_id); }
+    if (from)       { sql += ` AND e.start_time >= $${idx++}`; params.push(from); }
+    if (to)         { sql += ` AND e.start_time <= $${idx++}`; params.push(to); }
+    sql += ' ORDER BY e.start_time ASC';
+    const events = (await query(sql, params)).rows;
     res.json(events);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -110,11 +110,10 @@ router.get('/events', async (req, res) => {
 // POST /events
 router.post('/events', async (req, res) => {
   try {
-    const db = getDB();
     const { contact_id, title, description, start_time, end_time } = req.body;
 
     let google_event_id = null;
-    const auth = await getAuthedClient(db);
+    const auth = await getAuthedClient();
 
     if (auth) {
       try {
@@ -132,12 +131,12 @@ router.post('/events', async (req, res) => {
       }
     }
 
-    const result = db.prepare(`
+    const result = await query(`
       INSERT INTO calendar_events (google_event_id, contact_id, title, description, start_time, end_time)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(google_event_id, contact_id || null, title, description, start_time, end_time);
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
+    `, [google_event_id, contact_id || null, title, description, start_time, end_time]);
 
-    const ev = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(result.lastInsertRowid);
+    const ev = (await query('SELECT * FROM calendar_events WHERE id = $1', [result.rows[0].id])).rows[0];
     res.status(201).json({ ...ev, synced: !!google_event_id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -147,12 +146,11 @@ router.post('/events', async (req, res) => {
 // DELETE /events/:id
 router.delete('/events/:id', async (req, res) => {
   try {
-    const db = getDB();
-    const ev = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(req.params.id);
+    const ev = (await query('SELECT * FROM calendar_events WHERE id = $1', [req.params.id])).rows[0];
     if (!ev) return res.status(404).json({ error: 'Event not found' });
 
     if (ev.google_event_id) {
-      const auth = await getAuthedClient(db);
+      const auth = await getAuthedClient();
       if (auth) {
         try {
           const calendar = google.calendar({ version: 'v3', auth });
@@ -163,7 +161,7 @@ router.delete('/events/:id', async (req, res) => {
       }
     }
 
-    db.prepare('DELETE FROM calendar_events WHERE id = ?').run(req.params.id);
+    await query('DELETE FROM calendar_events WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -1,28 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { query } = require('../db');
 
 // GET /api/products?contact_id=&crm_type=
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDB();
     const { contact_id, crm_type } = req.query;
-    let query = 'SELECT * FROM client_products WHERE 1=1';
+    let sql = 'SELECT * FROM client_products WHERE 1=1';
     const params = [];
-    if (contact_id) { query += ' AND contact_id = ?'; params.push(contact_id); }
-    if (crm_type)   { query += ' AND crm_type = ?';   params.push(crm_type); }
-    query += ' ORDER BY created_at DESC';
-    res.json(db.prepare(query).all(...params));
+    let idx = 1;
+    if (contact_id) { sql += ` AND contact_id = $${idx++}`; params.push(contact_id); }
+    if (crm_type)   { sql += ` AND crm_type = $${idx++}`;   params.push(crm_type); }
+    sql += ' ORDER BY created_at DESC';
+    res.json((await query(sql, params)).rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // GET /api/products/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const db = getDB();
-    const p = db.prepare('SELECT * FROM client_products WHERE id = ?').get(req.params.id);
+    const p = (await query('SELECT * FROM client_products WHERE id = $1', [req.params.id])).rows[0];
     if (!p) return res.status(404).json({ error: 'Produto não encontrado' });
     res.json(p);
   } catch (err) {
@@ -31,35 +30,33 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/products
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDB();
     const { contact_id, crm_type = 'credito', product_type, credit_value, contract_date, contract_number, group_number, quota_number, notes } = req.body;
     if (!contact_id || !product_type) {
       return res.status(400).json({ error: 'contact_id e product_type são obrigatórios' });
     }
-    const result = db.prepare(`
+    const result = await query(`
       INSERT INTO client_products (contact_id, crm_type, product_type, credit_value, contract_date, contract_number, group_number, quota_number, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(contact_id, crm_type, product_type, credit_value || 0, contract_date || null, contract_number || null, group_number || null, quota_number || null, notes || null);
-    res.status(201).json(db.prepare('SELECT * FROM client_products WHERE id = ?').get(result.lastInsertRowid));
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [contact_id, crm_type, product_type, credit_value || 0, contract_date || null, contract_number || null, group_number || null, quota_number || null, notes || null]);
+    res.status(201).json((await query('SELECT * FROM client_products WHERE id = $1', [result.rows[0].id])).rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // PUT /api/products/:id
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const db = getDB();
-    const existing = db.prepare('SELECT * FROM client_products WHERE id = ?').get(req.params.id);
+    const existing = (await query('SELECT * FROM client_products WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Produto não encontrado' });
     const b = req.body;
-    db.prepare(`
+    await query(`
       UPDATE client_products SET
-        product_type=?, credit_value=?, contract_date=?, contract_number=?, group_number=?, quota_number=?, notes=?
-      WHERE id=?
-    `).run(
+        product_type=$1, credit_value=$2, contract_date=$3, contract_number=$4, group_number=$5, quota_number=$6, notes=$7
+      WHERE id=$8
+    `, [
       b.product_type    ?? existing.product_type,
       b.credit_value    ?? existing.credit_value,
       b.contract_date   ?? existing.contract_date,
@@ -68,18 +65,17 @@ router.put('/:id', (req, res) => {
       b.quota_number    ?? existing.quota_number,
       b.notes           ?? existing.notes,
       req.params.id
-    );
-    res.json(db.prepare('SELECT * FROM client_products WHERE id = ?').get(req.params.id));
+    ]);
+    res.json((await query('SELECT * FROM client_products WHERE id = $1', [req.params.id])).rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE /api/products/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDB();
-    db.prepare('DELETE FROM client_products WHERE id = ?').run(req.params.id);
+    await query('DELETE FROM client_products WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

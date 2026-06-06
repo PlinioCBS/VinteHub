@@ -1,30 +1,30 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { query } = require('../db');
 
 // GET / - list tasks
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDB();
     const { status, priority, contact_id, crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    let query = `
+    let sql = `
       SELECT t.*, c.name as contact_name
       FROM tasks t
       LEFT JOIN contacts c ON t.contact_id = c.id
       WHERE 1=1
     `;
     const params = [];
+    let idx = 1;
 
-    if (status) { query += ' AND t.status = ?'; params.push(status); }
-    if (priority) { query += ' AND t.priority = ?'; params.push(priority); }
-    if (contact_id) { query += ' AND t.contact_id = ?'; params.push(contact_id); }
-    if (crm_type) { query += ' AND t.crm_type = ?'; params.push(crm_type); }
-    if (!isMaster) { query += ` AND t.user_id = ${req.user.id}`; }
+    if (status)     { sql += ` AND t.status = $${idx++}`;     params.push(status); }
+    if (priority)   { sql += ` AND t.priority = $${idx++}`;   params.push(priority); }
+    if (contact_id) { sql += ` AND t.contact_id = $${idx++}`; params.push(contact_id); }
+    if (crm_type)   { sql += ` AND t.crm_type = $${idx++}`;   params.push(crm_type); }
+    if (!isMaster)  { sql += ` AND t.user_id = $${idx++}`;    params.push(req.user.id); }
 
-    query += ' ORDER BY t.due_date ASC, t.created_at DESC';
+    sql += ' ORDER BY t.due_date ASC, t.created_at DESC';
 
-    const tasks = db.prepare(query).all(...params);
+    const tasks = (await query(sql, params)).rows;
     res.json(tasks);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -32,17 +32,16 @@ router.get('/', (req, res) => {
 });
 
 // POST / - create
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDB();
     const { title, description, contact_id, deal_id, due_date, status = 'pending', priority = 'medium', crm_type = 'investimento' } = req.body;
 
-    const result = db.prepare(`
+    const result = await query(`
       INSERT INTO tasks (title, description, contact_id, deal_id, due_date, status, priority, crm_type, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(title, description, contact_id || null, deal_id || null, due_date, status, priority, crm_type, req.user.id);
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [title, description, contact_id || null, deal_id || null, due_date, status, priority, crm_type, req.user.id]);
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+    const task = (await query('SELECT * FROM tasks WHERE id = $1', [result.rows[0].id])).rows[0];
     res.status(201).json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -50,21 +49,20 @@ router.post('/', (req, res) => {
 });
 
 // PUT /:id - edit
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+    const existing = (await query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Task not found' });
     if (!isMaster && existing.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
     const b = req.body;
-    db.prepare(`
-      UPDATE tasks SET title=?, description=?, contact_id=?, deal_id=?, due_date=?, status=?, priority=?, crm_type=?
-      WHERE id=?
-    `).run(
+    await query(`
+      UPDATE tasks SET title=$1, description=$2, contact_id=$3, deal_id=$4, due_date=$5, status=$6, priority=$7, crm_type=$8
+      WHERE id=$9
+    `, [
       b.title       ?? existing.title,
       b.description ?? existing.description,
       b.contact_id  !== undefined ? (b.contact_id || null) : existing.contact_id,
@@ -74,9 +72,9 @@ router.put('/:id', (req, res) => {
       b.priority    ?? existing.priority,
       b.crm_type    ?? existing.crm_type,
       req.params.id
-    );
+    ]);
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+    const task = (await query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
     res.json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -84,17 +82,16 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM tasks WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM tasks WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
     }
-    db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+    await query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

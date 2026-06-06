@@ -1,37 +1,37 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { query } = require('../db');
 
-function getSetting(db, key) {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+async function getSetting(key) {
+  const row = (await query('SELECT value FROM settings WHERE key = $1', [key])).rows[0];
   return row ? row.value : null;
 }
 
-function getCRMFee(db, crm_type) {
+async function getCRMFee(crm_type) {
   const key = crm_type ? `fee_percent_${crm_type}` : 'fee_percent';
-  return parseFloat(getSetting(db, key)) || 0.55;
+  return parseFloat(await getSetting(key)) || 0.55;
 }
 
-function getCRMGoal(db, crm_type) {
+async function getCRMGoal(crm_type) {
   const defaults = { investimento: 30000000, cambio: 5000000, credito: 10000000, seguro: 8000000 };
   const key = crm_type ? `captacao_goal_${crm_type}` : 'captacao_goal';
-  return parseFloat(getSetting(db, key)) || (defaults[crm_type] || 30000000);
+  return parseFloat(await getSetting(key)) || (defaults[crm_type] || 30000000);
 }
 
 // GET /goal
-router.get('/goal', (req, res) => {
+router.get('/goal', async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    const goal = getCRMGoal(db, crm_type);
+    const goal = await getCRMGoal(crm_type);
 
-    let query = "SELECT SUM(aum) as total FROM contacts WHERE status = 'cliente'";
+    let sql = "SELECT SUM(aum) as total FROM contacts WHERE status = 'cliente'";
     const params = [];
-    if (crm_type) { query += ' AND crm_type = ?'; params.push(crm_type); }
-    if (!isMaster) { query += ` AND user_id = ${req.user.id}`; }
+    let idx = 1;
+    if (crm_type) { sql += ` AND crm_type = $${idx++}`; params.push(crm_type); }
+    if (!isMaster) { sql += ` AND user_id = $${idx++}`; params.push(req.user.id); }
 
-    const totalAUM = db.prepare(query).get(...params).total || 0;
+    const totalAUM = parseFloat((await query(sql, params)).rows[0].total) || 0;
     const remaining = Math.max(0, goal - totalAUM);
     const progress = goal > 0 ? (totalAUM / goal) * 100 : 0;
     res.json({ goal, totalAUM, remaining, progress });
@@ -41,12 +41,11 @@ router.get('/goal', (req, res) => {
 });
 
 // PUT /goal
-router.put('/goal', (req, res) => {
+router.put('/goal', async (req, res) => {
   try {
-    const db = getDB();
     const { goal, crm_type } = req.body;
     const key = crm_type ? `captacao_goal_${crm_type}` : 'captacao_goal';
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(goal));
+    await query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, String(goal)]);
     res.json({ success: true, goal });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -54,11 +53,10 @@ router.put('/goal', (req, res) => {
 });
 
 // GET /fee
-router.get('/fee', (req, res) => {
+router.get('/fee', async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type } = req.query;
-    const fee = getCRMFee(db, crm_type);
+    const fee = await getCRMFee(crm_type);
     res.json({ fee });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -66,12 +64,11 @@ router.get('/fee', (req, res) => {
 });
 
 // PUT /fee
-router.put('/fee', (req, res) => {
+router.put('/fee', async (req, res) => {
   try {
-    const db = getDB();
     const { fee, crm_type } = req.body;
     const key = crm_type ? `fee_percent_${crm_type}` : 'fee_percent';
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(fee));
+    await query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, String(fee)]);
     res.json({ success: true, fee });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -79,20 +76,20 @@ router.put('/fee', (req, res) => {
 });
 
 // GET /revenue
-router.get('/revenue', (req, res) => {
+router.get('/revenue', async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    const fee = getCRMFee(db, crm_type);
+    const fee = await getCRMFee(crm_type);
 
-    let query = "SELECT id, name, aum FROM contacts WHERE status = 'cliente' AND aum > 0";
+    let sql = "SELECT id, name, aum FROM contacts WHERE status = 'cliente' AND aum > 0";
     const params = [];
-    if (crm_type) { query += ' AND crm_type = ?'; params.push(crm_type); }
-    if (!isMaster) { query += ` AND user_id = ${req.user.id}`; }
+    let idx = 1;
+    if (crm_type) { sql += ` AND crm_type = $${idx++}`; params.push(crm_type); }
+    if (!isMaster) { sql += ` AND user_id = $${idx++}`; params.push(req.user.id); }
 
-    const clients = db.prepare(query).all(...params);
-    const totalAUM = clients.reduce((s, c) => s + c.aum, 0);
+    const clients = (await query(sql, params)).rows;
+    const totalAUM = clients.reduce((s, c) => s + parseFloat(c.aum || 0), 0);
     const totalAnnual = totalAUM * (fee / 100);
     const totalMonthly = totalAnnual / 12;
     const perClient = clients.map(c => ({
@@ -109,30 +106,30 @@ router.get('/revenue', (req, res) => {
 });
 
 // GET / - active clients list
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
 
-    let query = "SELECT * FROM contacts WHERE status = 'cliente'";
+    let sql = "SELECT * FROM contacts WHERE status = 'cliente'";
     const params = [];
-    if (crm_type) { query += ' AND crm_type = ?'; params.push(crm_type); }
-    if (!isMaster) { query += ` AND user_id = ${req.user.id}`; }
-    query += ' ORDER BY name';
+    let idx = 1;
+    if (crm_type) { sql += ` AND crm_type = $${idx++}`; params.push(crm_type); }
+    if (!isMaster) { sql += ` AND user_id = $${idx++}`; params.push(req.user.id); }
+    sql += ' ORDER BY name';
 
-    const clients = db.prepare(query).all(...params);
+    const clients = (await query(sql, params)).rows;
 
-    const enriched = clients.map(c => {
-      const wonDeals = db.prepare("SELECT COUNT(*) as cnt FROM deals WHERE contact_id = ? AND stage = 'fechado_ganho'").get(c.id).cnt;
-      const fee = getCRMFee(db, c.crm_type);
-      const totalRevenue = c.aum * (fee / 100);
-      const openTasks = db.prepare("SELECT COUNT(*) as cnt FROM tasks WHERE contact_id = ? AND status = 'pending'").get(c.id).cnt;
-      const lastActivity = db.prepare("SELECT created_at FROM activities WHERE contact_id = ? ORDER BY created_at DESC LIMIT 1").get(c.id);
-      return { ...c, wonDeals, totalRevenue, openTasks, lastActivity: lastActivity ? lastActivity.created_at : null };
-    });
+    const enriched = await Promise.all(clients.map(async (c) => {
+      const wonDeals = parseInt((await query("SELECT COUNT(*) as cnt FROM deals WHERE contact_id = $1 AND stage = 'fechado_ganho'", [c.id])).rows[0].cnt);
+      const fee = await getCRMFee(c.crm_type);
+      const totalRevenue = (c.aum || 0) * (fee / 100);
+      const openTasks = parseInt((await query("SELECT COUNT(*) as cnt FROM tasks WHERE contact_id = $1 AND status = 'pending'", [c.id])).rows[0].cnt);
+      const lastActivityRow = (await query("SELECT created_at FROM activities WHERE contact_id = $1 ORDER BY created_at DESC LIMIT 1", [c.id])).rows[0];
+      return { ...c, wonDeals, totalRevenue, openTasks, lastActivity: lastActivityRow ? lastActivityRow.created_at : null };
+    }));
 
-    const totalAUM = enriched.reduce((s, c) => s + (c.aum || 0), 0);
+    const totalAUM = enriched.reduce((s, c) => s + (parseFloat(c.aum) || 0), 0);
     res.json({ clients: enriched, totalAUM });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -140,22 +137,21 @@ router.get('/', (req, res) => {
 });
 
 // GET /:id - full client detail
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const client = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const client = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     if (!client) return res.status(404).json({ error: 'Client not found' });
     if (!isMaster && client.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    const deals = db.prepare('SELECT * FROM deals WHERE contact_id = ? ORDER BY created_at DESC').all(req.params.id);
-    const tasks = db.prepare('SELECT * FROM tasks WHERE contact_id = ? ORDER BY due_date ASC').all(req.params.id);
-    const activities = db.prepare('SELECT * FROM activities WHERE contact_id = ? ORDER BY created_at DESC').all(req.params.id);
-    const events = db.prepare('SELECT * FROM calendar_events WHERE contact_id = ? ORDER BY start_time DESC').all(req.params.id);
+    const deals = (await query('SELECT * FROM deals WHERE contact_id = $1 ORDER BY created_at DESC', [req.params.id])).rows;
+    const tasks = (await query('SELECT * FROM tasks WHERE contact_id = $1 ORDER BY due_date ASC', [req.params.id])).rows;
+    const activities = (await query('SELECT * FROM activities WHERE contact_id = $1 ORDER BY created_at DESC', [req.params.id])).rows;
+    const events = (await query('SELECT * FROM calendar_events WHERE contact_id = $1 ORDER BY start_time DESC', [req.params.id])).rows;
 
-    const fee = getCRMFee(db, client.crm_type);
+    const fee = await getCRMFee(client.crm_type);
     const annualRevenue = (client.aum || 0) * (fee / 100);
     const monthlyRevenue = annualRevenue / 12;
 
@@ -166,16 +162,15 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /:id/activity - log activity
-router.post('/:id/activity', (req, res) => {
+router.post('/:id/activity', async (req, res) => {
   try {
-    const db = getDB();
     const { type = 'note', description } = req.body;
-    const contact = db.prepare('SELECT crm_type FROM contacts WHERE id = ?').get(req.params.id);
-    const result = db.prepare(`
+    const contact = (await query('SELECT crm_type FROM contacts WHERE id = $1', [req.params.id])).rows[0];
+    const result = await query(`
       INSERT INTO activities (type, description, contact_id, crm_type, user_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(type, description, req.params.id, contact ? contact.crm_type : 'investimento', req.user.id);
-    const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(result.lastInsertRowid);
+      VALUES ($1,$2,$3,$4,$5) RETURNING id
+    `, [type, description, req.params.id, contact ? contact.crm_type : 'investimento', req.user.id]);
+    const activity = (await query('SELECT * FROM activities WHERE id = $1', [result.rows[0].id])).rows[0];
     res.status(201).json(activity);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -183,25 +178,24 @@ router.post('/:id/activity', (req, res) => {
 });
 
 // POST /:id/renewal - return to funnel and create new deal
-router.post('/:id/renewal', (req, res) => {
+router.post('/:id/renewal', async (req, res) => {
   try {
-    const db = getDB();
-    const client = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const client = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    db.prepare("UPDATE contacts SET status = 'negociacao' WHERE id = ?").run(req.params.id);
+    await query("UPDATE contacts SET status = 'negociacao' WHERE id = $1", [req.params.id]);
 
-    const dealResult = db.prepare(`
+    const dealRes = await query(`
       INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id)
-      VALUES (?, ?, 'negociacao', 75, ?, ?)
-    `).run(`Renovação - ${client.name}`, req.params.id, client.crm_type || 'investimento', req.user.id);
+      VALUES ($1, $2, 'negociacao', 75, $3, $4) RETURNING id
+    `, [`Renovação - ${client.name}`, req.params.id, client.crm_type || 'investimento', req.user.id]);
 
-    db.prepare(`
+    await query(`
       INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
-      VALUES ('renewal', ?, ?, ?, ?, ?)
-    `).run('Renovação iniciada - cliente retornou ao funil', req.params.id, dealResult.lastInsertRowid, client.crm_type || 'investimento', req.user.id);
+      VALUES ('renewal', $1, $2, $3, $4, $5)
+    `, ['Renovação iniciada - cliente retornou ao funil', req.params.id, dealRes.rows[0].id, client.crm_type || 'investimento', req.user.id]);
 
-    res.json({ success: true, deal_id: dealResult.lastInsertRowid });
+    res.json({ success: true, deal_id: dealRes.rows[0].id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

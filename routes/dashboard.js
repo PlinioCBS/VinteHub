@@ -1,71 +1,94 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { query } = require('../db');
 
-function getCRMFee(db, crm_type) {
+async function getCRMFee(crm_type) {
   const key = crm_type ? `fee_percent_${crm_type}` : 'fee_percent';
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  const row = (await query('SELECT value FROM settings WHERE key = $1', [key])).rows[0];
   return parseFloat(row ? row.value : null) || 0.55;
 }
 
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    const db = getDB();
     const today = new Date().toISOString().split('T')[0];
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    const userFilter = isMaster ? '' : ` AND user_id = ${req.user.id}`;
 
-    const crmFilter = crm_type ? ` AND crm_type = '${crm_type}'` : '';
-    const crmFilterT = crm_type ? ` AND t.crm_type = '${crm_type}'` : '';
-    const crmFilterA = crm_type ? ` AND a.crm_type = '${crm_type}'` : '';
+    // Build parameterized filters
+    const buildFilters = (tableAlias) => {
+      const params = [];
+      let idx = 1;
+      let crmF = '';
+      let userF = '';
+      if (crm_type) { crmF = ` AND ${tableAlias ? tableAlias + '.' : ''}crm_type = $${idx++}`; params.push(crm_type); }
+      if (!isMaster) { userF = ` AND ${tableAlias ? tableAlias + '.' : ''}user_id = $${idx++}`; params.push(req.user.id); }
+      return { crmF, userF, params, idx };
+    };
 
-    const totalContacts = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo'${crmFilter}${userFilter}`).get().c;
-    const newLeads = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status = 'prospecting'${crmFilter}${userFilter}`).get().c;
-    const openDeals = db.prepare(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido')${crmFilter}${userFilter}`).get().c;
-    const wonDeals = db.prepare(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho'${crmFilter}${userFilter}`).get().c;
-    const pendingTasks = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'pending'${crmFilter}${userFilter}`).get().c;
-    const overdueTasks = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'pending' AND due_date < '${today}'${crmFilter}${userFilter}`).get().c;
+    const f = buildFilters('');
 
-    const pipelineValueRow = db.prepare(
-      `SELECT SUM(value) as total FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido')${crmFilter}${userFilter}`
-    ).get();
-    const pipelineValue = pipelineValueRow.total || 0;
+    const totalContacts = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo'${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const newLeads = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status = 'prospecting'${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const openDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido')${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const wonDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho'${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const pendingTasks = parseInt((await query(`SELECT COUNT(*) as c FROM tasks WHERE status = 'pending'${f.crmF}${f.userF}`, f.params)).rows[0].c);
 
-    const dealsByStage = db.prepare(`
-      SELECT stage, COUNT(*) as count, SUM(value) as total
-      FROM deals
-      WHERE stage NOT IN ('fechado_perdido')${crmFilter}${userFilter}
-      GROUP BY stage
-    `).all();
+    // overdue tasks needs extra param for date
+    const overdueParams = [...f.params];
+    let overdueIdx = f.params.length + 1;
+    const overdueTasks = parseInt((await query(
+      `SELECT COUNT(*) as c FROM tasks WHERE status = 'pending' AND due_date < $${overdueIdx}${f.crmF}${f.userF}`,
+      [...overdueParams, today]
+    )).rows[0].c);
 
-    const contactsByStatus = db.prepare(`
-      SELECT status, COUNT(*) as count FROM contacts WHERE 1=1${crmFilter}${userFilter} GROUP BY status
-    `).all();
+    // For these we need to rebuild with different param order since today goes first
+    const overdueParams2 = [today, ...f.params];
+    // Actually rebuild cleanly:
+    const buildFilters2 = (baseParams) => {
+      const params = [...baseParams];
+      let idx = params.length + 1;
+      let crmF = '';
+      let userF = '';
+      if (crm_type) { crmF = ` AND crm_type = $${idx++}`; params.push(crm_type); }
+      if (!isMaster) { userF = ` AND user_id = $${idx++}`; params.push(req.user.id); }
+      return { crmF, userF, params };
+    };
 
-    const userFilterA = isMaster ? '' : ` AND a.user_id = ${req.user.id}`;
-    const recentActivities = db.prepare(`
-      SELECT a.*, c.name as contact_name
-      FROM activities a
-      LEFT JOIN contacts c ON a.contact_id = c.id
-      WHERE 1=1${crmFilterA}${userFilterA}
-      ORDER BY a.created_at DESC
-      LIMIT 10
-    `).all();
+    const pipelineValueRow = (await query(
+      `SELECT SUM(value) as total FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido')${f.crmF}${f.userF}`,
+      f.params
+    )).rows[0];
+    const pipelineValue = parseFloat(pipelineValueRow.total) || 0;
 
-    const userFilterT = isMaster ? '' : ` AND t.user_id = ${req.user.id}`;
-    const upcomingTasks = db.prepare(`
-      SELECT t.*, c.name as contact_name
-      FROM tasks t
-      LEFT JOIN contacts c ON t.contact_id = c.id
-      WHERE t.status = 'pending' AND t.due_date >= '${today}'${crmFilterT}${userFilterT}
-      ORDER BY t.due_date ASC
-      LIMIT 5
-    `).all();
+    const dealsByStage = (await query(
+      `SELECT stage, COUNT(*) as count, SUM(value) as total FROM deals WHERE stage NOT IN ('fechado_perdido')${f.crmF}${f.userF} GROUP BY stage`,
+      f.params
+    )).rows;
 
-    const aumByClient = db.prepare(`
-      SELECT name, aum FROM contacts WHERE status = 'cliente' AND aum > 0${crmFilter}${userFilter} ORDER BY aum DESC LIMIT 10
-    `).all();
+    const contactsByStatus = (await query(
+      `SELECT status, COUNT(*) as count FROM contacts WHERE 1=1${f.crmF}${f.userF} GROUP BY status`,
+      f.params
+    )).rows;
+
+    // Activities with table alias
+    const fa = buildFilters('a');
+    const recentActivities = (await query(
+      `SELECT a.*, c.name as contact_name FROM activities a LEFT JOIN contacts c ON a.contact_id = c.id WHERE 1=1${fa.crmF}${fa.userF} ORDER BY a.created_at DESC LIMIT 10`,
+      fa.params
+    )).rows;
+
+    // Tasks with table alias + today filter
+    const ft = buildFilters2([today]);
+    const upcomingTasksParams = ft.params;
+    const upcomingTasks = (await query(
+      `SELECT t.*, c.name as contact_name FROM tasks t LEFT JOIN contacts c ON t.contact_id = c.id WHERE t.status = 'pending' AND t.due_date >= $1${ft.crmF}${ft.userF} ORDER BY t.due_date ASC LIMIT 5`,
+      upcomingTasksParams
+    )).rows;
+
+    const aumByClient = (await query(
+      `SELECT name, aum FROM contacts WHERE status = 'cliente' AND aum > 0${f.crmF}${f.userF} ORDER BY aum DESC LIMIT 10`,
+      f.params
+    )).rows;
 
     res.json({
       totalContacts,
@@ -87,9 +110,8 @@ router.get('/stats', (req, res) => {
 });
 
 // GET /general - cross-CRM stats for master
-router.get('/general', (req, res) => {
+router.get('/general', async (req, res) => {
   try {
-    const db = getDB();
     const crmTypes = [
       { key: 'investimento', label: 'Investimento', color: '#355641' },
       { key: 'cambio', label: 'Câmbio', color: '#dd7752' },
@@ -97,18 +119,18 @@ router.get('/general', (req, res) => {
       { key: 'seguro', label: 'Seguro', color: '#353535' }
     ];
 
-    const perCRM = crmTypes.map(({ key: crm, label, color }) => {
-      const fee = getCRMFee(db, crm);
-      const activeClients = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status = 'cliente' AND crm_type = ?`).get(crm).c;
-      const contacts = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo' AND crm_type = ?`).get(crm).c;
-      const totalAUM = db.prepare(`SELECT SUM(aum) as total FROM contacts WHERE status = 'cliente' AND crm_type = ?`).get(crm).total || 0;
-      const pipelineValue = db.prepare(`SELECT SUM(value) as total FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido') AND crm_type = ?`).get(crm).total || 0;
-      const wonDeals = db.prepare(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho' AND crm_type = ?`).get(crm).c;
+    const perCRM = await Promise.all(crmTypes.map(async ({ key: crm, label, color }) => {
+      const fee = await getCRMFee(crm);
+      const activeClients = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status = 'cliente' AND crm_type = $1`, [crm])).rows[0].c);
+      const contacts = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo' AND crm_type = $1`, [crm])).rows[0].c);
+      const totalAUM = parseFloat((await query(`SELECT SUM(aum) as total FROM contacts WHERE status = 'cliente' AND crm_type = $1`, [crm])).rows[0].total) || 0;
+      const pipelineValue = parseFloat((await query(`SELECT SUM(value) as total FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido') AND crm_type = $1`, [crm])).rows[0].total) || 0;
+      const wonDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho' AND crm_type = $1`, [crm])).rows[0].c);
       const totalAnnual = totalAUM * (fee / 100);
       const totalMonthly = totalAnnual / 12;
 
       return { crm_type: crm, label, color, fee, totalAUM, totalAnnual, totalMonthly, activeClients, contacts, pipelineValue, wonDeals };
-    });
+    }));
 
     const grandTotalAUM = perCRM.reduce((s, c) => s + c.totalAUM, 0);
     const grandTotalAnnual = perCRM.reduce((s, c) => s + c.totalAnnual, 0);
@@ -116,19 +138,18 @@ router.get('/general', (req, res) => {
     const totalPipeline = perCRM.reduce((s, c) => s + c.pipelineValue, 0);
     const totalClients = perCRM.reduce((s, c) => s + c.activeClients, 0);
 
-    const recentActivities = db.prepare(`
+    const recentActivities = (await query(`
       SELECT a.*, c.name as contact_name
       FROM activities a
       LEFT JOIN contacts c ON a.contact_id = c.id
       ORDER BY a.created_at DESC
       LIMIT 20
-    `).all();
+    `)).rows;
 
-    // Crédito summary
-    const portoTotal = db.prepare(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_porto'`).get().t;
-    const bancorbrasTotal = db.prepare(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_bancorbras'`).get().t;
-    const cartaTotal = db.prepare(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'carta_contemplada'`).get().t;
-    const financiamentoTotal = db.prepare(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'financiamento'`).get().t;
+    const portoTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_porto'`)).rows[0].t) || 0;
+    const bancorbrasTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_bancorbras'`)).rows[0].t) || 0;
+    const cartaTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'carta_contemplada'`)).rows[0].t) || 0;
+    const financiamentoTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'financiamento'`)).rows[0].t) || 0;
     const creditGrandTotal = portoTotal + bancorbrasTotal + cartaTotal + financiamentoTotal;
 
     const credito_summary = {
@@ -145,12 +166,10 @@ router.get('/general', (req, res) => {
       grandTotalMonthly,
       totalPipeline,
       totalClients,
-      // legacy keys for backward compat
       totalAUM: grandTotalAUM,
       totalAnnualRevenue: grandTotalAnnual,
       totalMonthlyRevenue: grandTotalMonthly,
       perCRM,
-      // legacy key
       perCRM_legacy: perCRM.map(c => ({ crm: c.crm_type, ...c })),
       recentActivities,
       credito_summary
@@ -160,32 +179,26 @@ router.get('/general', (req, res) => {
   }
 });
 
-// GET /credit-summary - breakdown of credit products by type
-router.get('/credit-summary', (req, res) => {
+// GET /credit-summary
+router.get('/credit-summary', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const userJoin = isMaster ? '' : ` AND c.user_id = ${req.user.id}`;
+    const userParams = isMaster ? [] : [req.user.id];
+    const userJoin = isMaster ? '' : ` AND c.user_id = $1`;
 
-    const rows = db.prepare(`
+    const rows = (await query(`
       SELECT
         cp.product_type,
         COALESCE(SUM(cp.credit_value), 0) as total_credit,
         COUNT(DISTINCT cp.contact_id) as clients,
-        COUNT(*) as products,
-        cp.contact_id,
-        cp.contract_number,
-        cp.group_number,
-        cp.quota_number,
-        cp.contract_date,
-        c.name as client_name
+        COUNT(*) as products
       FROM client_products cp
       JOIN contacts c ON cp.contact_id = c.id
       WHERE 1=1${userJoin}
       GROUP BY cp.product_type
-    `).all();
+    `, userParams)).rows;
 
-    const topClients = db.prepare(`
+    const topClients = (await query(`
       SELECT
         cp.id,
         c.name as client_name,
@@ -201,30 +214,28 @@ router.get('/credit-summary', (req, res) => {
       WHERE 1=1${userJoin}
       ORDER BY cp.credit_value DESC
       LIMIT 50
-    `).all();
+    `, userParams)).rows;
 
     const byType = {};
     let grandTotal = 0;
-    let totalClientsSet = new Set();
     let totalProducts = 0;
 
     for (const r of rows) {
       byType[r.product_type] = {
-        total_credit: r.total_credit,
-        clients: r.clients,
-        products: r.products
+        total_credit: parseFloat(r.total_credit),
+        clients: parseInt(r.clients),
+        products: parseInt(r.products)
       };
-      grandTotal += r.total_credit;
-      totalProducts += r.products;
+      grandTotal += parseFloat(r.total_credit);
+      totalProducts += parseInt(r.products);
     }
 
-    // Count distinct clients across all types
-    const distinctClients = db.prepare(`
+    const distinctClients = parseInt((await query(`
       SELECT COUNT(DISTINCT cp.contact_id) as c
       FROM client_products cp
       JOIN contacts c ON cp.contact_id = c.id
       WHERE 1=1${userJoin}
-    `).get().c;
+    `, userParams)).rows[0].c);
 
     const porto = byType['consorcio_porto'] || { total_credit: 0, clients: 0, products: 0 };
     const bancorbras = byType['consorcio_bancorbras'] || { total_credit: 0, clients: 0, products: 0 };
@@ -246,60 +257,58 @@ router.get('/credit-summary', (req, res) => {
   }
 });
 
-// GET /employee-ranking - employee performance per CRM
-router.get('/employee-ranking', (req, res) => {
+// GET /employee-ranking
+router.get('/employee-ranking', async (req, res) => {
   try {
-    const db = getDB();
     const { crm_type } = req.query;
 
-    const employees = db.prepare(`SELECT id, name, photo_url, commission_percent FROM users WHERE role = 'employee' AND active = 1`).all();
+    const employees = (await query(`SELECT id, name, photo_url, commission_percent FROM users WHERE role = 'employee' AND active = 1`)).rows;
 
     const crmList = (!crm_type || crm_type === 'all')
       ? ['investimento', 'cambio', 'credito', 'seguro']
       : [crm_type];
 
-    const results = employees.map(emp => {
+    const results = await Promise.all(employees.map(async (emp) => {
       let activeClients = 0, totalAUM = 0, annualRevenue = 0, dealsWon = 0, openDeals = 0, totalProspects = 0, creditVolume = 0, productsCount = 0, creditByType = {};
 
       for (const crm of crmList) {
-        const fee = getCRMFee(db, crm);
+        const fee = await getCRMFee(crm);
 
-        const ac = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status = 'cliente' AND crm_type = ? AND user_id = ?`).get(crm, emp.id).c;
+        const ac = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status = 'cliente' AND crm_type = $1 AND user_id = $2`, [crm, emp.id])).rows[0].c);
         activeClients += ac;
 
-        const aum = db.prepare(`SELECT COALESCE(SUM(aum), 0) as total FROM contacts WHERE status = 'cliente' AND crm_type = ? AND user_id = ?`).get(crm, emp.id).total;
+        const aum = parseFloat((await query(`SELECT COALESCE(SUM(aum), 0) as total FROM contacts WHERE status = 'cliente' AND crm_type = $1 AND user_id = $2`, [crm, emp.id])).rows[0].total) || 0;
         totalAUM += aum;
         annualRevenue += aum * (fee / 100);
 
-        const dw = db.prepare(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho' AND crm_type = ? AND user_id = ?`).get(crm, emp.id).c;
+        const dw = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho' AND crm_type = $1 AND user_id = $2`, [crm, emp.id])).rows[0].c);
         dealsWon += dw;
 
-        const od = db.prepare(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido') AND crm_type = ? AND user_id = ?`).get(crm, emp.id).c;
+        const od = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido') AND crm_type = $1 AND user_id = $2`, [crm, emp.id])).rows[0].c);
         openDeals += od;
 
-        const tp = db.prepare(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo' AND crm_type = ? AND user_id = ?`).get(crm, emp.id).c;
+        const tp = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo' AND crm_type = $1 AND user_id = $2`, [crm, emp.id])).rows[0].c);
         totalProspects += tp;
 
         if (crm === 'credito') {
-          const cv = db.prepare(`
+          const cv = (await query(`
             SELECT COALESCE(SUM(cp.credit_value), 0) as total, COUNT(*) as cnt
             FROM client_products cp
             JOIN contacts c ON cp.contact_id = c.id
-            WHERE c.user_id = ?
-          `).get(emp.id);
-          creditVolume += cv.total;
-          productsCount += cv.cnt;
+            WHERE c.user_id = $1
+          `, [emp.id])).rows[0];
+          creditVolume += parseFloat(cv.total) || 0;
+          productsCount += parseInt(cv.cnt) || 0;
 
-          // Por tipo de produto
-          const byTypeRows = db.prepare(`
+          const byTypeRows = (await query(`
             SELECT cp.product_type, COALESCE(SUM(cp.credit_value), 0) as total
             FROM client_products cp
             JOIN contacts c ON cp.contact_id = c.id
-            WHERE c.user_id = ?
+            WHERE c.user_id = $1
             GROUP BY cp.product_type
-          `).all(emp.id);
+          `, [emp.id])).rows;
           for (const row of byTypeRows) {
-            creditByType[row.product_type] = (creditByType[row.product_type] || 0) + row.total;
+            creditByType[row.product_type] = (creditByType[row.product_type] || 0) + parseFloat(row.total);
           }
         }
       }
@@ -324,9 +333,8 @@ router.get('/employee-ranking', (req, res) => {
         products_count: productsCount,
         credit_by_type: creditByType
       };
-    });
+    }));
 
-    // Sort
     if (crm_type === 'investimento') {
       results.sort((a, b) => b.total_aum - a.total_aum);
     } else if (crm_type === 'credito') {

@@ -1,37 +1,39 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { query } = require('../db');
 
 const FUNNEL_ORDER = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'cliente'];
 
 // GET / - list contacts
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDB();
     const { search, status, crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    let query = 'SELECT * FROM contacts WHERE 1=1';
+    let sql = 'SELECT * FROM contacts WHERE 1=1';
     const params = [];
+    let idx = 1;
 
     if (search) {
-      query += ' AND (name LIKE ? OR email LIKE ? OR company LIKE ? OR phone LIKE ?)';
+      sql += ` AND (name ILIKE $${idx} OR email ILIKE $${idx+1} OR company ILIKE $${idx+2} OR phone ILIKE $${idx+3})`;
       const s = `%${search}%`;
       params.push(s, s, s, s);
+      idx += 4;
     }
     if (status) {
-      query += ' AND status = ?';
+      sql += ` AND status = $${idx++}`;
       params.push(status);
     }
     if (crm_type) {
-      query += ' AND crm_type = ?';
+      sql += ` AND crm_type = $${idx++}`;
       params.push(crm_type);
     }
     if (!isMaster) {
-      query += ` AND user_id = ${req.user.id}`;
+      sql += ` AND user_id = $${idx++}`;
+      params.push(req.user.id);
     }
-    query += ' ORDER BY created_at DESC';
+    sql += ' ORDER BY created_at DESC';
 
-    const contacts = db.prepare(query).all(...params);
+    const contacts = (await query(sql, params)).rows;
     res.json(contacts);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -39,19 +41,18 @@ router.get('/', (req, res) => {
 });
 
 // GET /:id - detail
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
     if (!isMaster && contact.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    const deals = db.prepare('SELECT * FROM deals WHERE contact_id = ? ORDER BY created_at DESC').all(req.params.id);
-    const tasks = db.prepare('SELECT * FROM tasks WHERE contact_id = ? ORDER BY due_date ASC').all(req.params.id);
-    const activities = db.prepare('SELECT * FROM activities WHERE contact_id = ? ORDER BY created_at DESC LIMIT 20').all(req.params.id);
+    const deals = (await query('SELECT * FROM deals WHERE contact_id = $1 ORDER BY created_at DESC', [req.params.id])).rows;
+    const tasks = (await query('SELECT * FROM tasks WHERE contact_id = $1 ORDER BY due_date ASC', [req.params.id])).rows;
+    const activities = (await query('SELECT * FROM activities WHERE contact_id = $1 ORDER BY created_at DESC LIMIT 20', [req.params.id])).rows;
 
     res.json({ ...contact, deals, tasks, activities });
   } catch (err) {
@@ -60,9 +61,8 @@ router.get('/:id', (req, res) => {
 });
 
 // POST / - create
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDB();
     const {
       name, email, phone, company, status = 'prospecting', notes,
       aum = 0, investor_profile, portfolio, liquidity_horizon,
@@ -71,16 +71,17 @@ router.post('/', (req, res) => {
       crm_type = 'investimento'
     } = req.body;
 
-    const result = db.prepare(`
+    const result = await query(`
       INSERT INTO contacts (name, email, phone, company, status, notes, aum,
         investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
         address, profession, monthly_income, marital_status, birth_date, age, crm_type, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name, email, phone, company, status, notes, aum,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+      RETURNING id
+    `, [name, email, phone, company, status, notes, aum,
       investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
-      address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id);
+      address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id]);
 
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(result.lastInsertRowid);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [result.rows[0].id])).rows[0];
     res.status(201).json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -88,52 +89,49 @@ router.post('/', (req, res) => {
 });
 
 // PUT /:id - edit
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const existing = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Contact not found' });
     if (!isMaster && existing.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
     const b = req.body;
-
-    // Usa valor do body se fornecido, senão mantém o valor existente no banco
-    db.prepare(`
+    await query(`
       UPDATE contacts SET
-        name=?, email=?, phone=?, company=?, status=?, notes=?, aum=?,
-        investor_profile=?, portfolio=?, liquidity_horizon=?,
-        bank_name=?, bank_agency=?, bank_account=?,
-        address=?, profession=?, monthly_income=?, marital_status=?, birth_date=?, age=?,
-        crm_type=?
-      WHERE id=?
-    `).run(
-      b.name          ?? existing.name,
-      b.email         ?? existing.email,
-      b.phone         ?? existing.phone,
-      b.company       ?? existing.company,
-      b.status        ?? existing.status,
-      b.notes         ?? existing.notes,
-      b.aum           ?? existing.aum,
+        name=$1, email=$2, phone=$3, company=$4, status=$5, notes=$6, aum=$7,
+        investor_profile=$8, portfolio=$9, liquidity_horizon=$10,
+        bank_name=$11, bank_agency=$12, bank_account=$13,
+        address=$14, profession=$15, monthly_income=$16, marital_status=$17, birth_date=$18, age=$19,
+        crm_type=$20
+      WHERE id=$21
+    `, [
+      b.name               ?? existing.name,
+      b.email              ?? existing.email,
+      b.phone              ?? existing.phone,
+      b.company            ?? existing.company,
+      b.status             ?? existing.status,
+      b.notes              ?? existing.notes,
+      b.aum                ?? existing.aum,
       b.investor_profile   ?? existing.investor_profile,
       b.portfolio          ?? existing.portfolio,
       b.liquidity_horizon  ?? existing.liquidity_horizon,
-      b.bank_name     ?? existing.bank_name,
-      b.bank_agency   ?? existing.bank_agency,
-      b.bank_account  ?? existing.bank_account,
-      b.address       ?? existing.address,
-      b.profession    ?? existing.profession,
+      b.bank_name          ?? existing.bank_name,
+      b.bank_agency        ?? existing.bank_agency,
+      b.bank_account       ?? existing.bank_account,
+      b.address            ?? existing.address,
+      b.profession         ?? existing.profession,
       b.monthly_income     ?? existing.monthly_income,
       b.marital_status     ?? existing.marital_status,
-      b.birth_date    ?? existing.birth_date,
-      b.age           ?? existing.age,
-      b.crm_type      ?? existing.crm_type,
+      b.birth_date         ?? existing.birth_date,
+      b.age                ?? existing.age,
+      b.crm_type           ?? existing.crm_type,
       req.params.id
-    );
+    ]);
 
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -141,17 +139,16 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM contacts WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM contacts WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
     }
-    db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
+    await query('DELETE FROM contacts WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -159,11 +156,10 @@ router.delete('/:id', (req, res) => {
 });
 
 // POST /:id/advance - advance funnel status
-router.post('/:id/advance', (req, res) => {
+router.post('/:id/advance', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
     if (!isMaster && contact.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado' });
@@ -175,45 +171,44 @@ router.post('/:id/advance', (req, res) => {
     }
 
     const nextStatus = FUNNEL_ORDER[currentIdx + 1];
-    db.prepare('UPDATE contacts SET status = ? WHERE id = ?').run(nextStatus, req.params.id);
+    await query('UPDATE contacts SET status = $1 WHERE id = $2', [nextStatus, req.params.id]);
 
-    // Advance or create linked deals
-    const activeDeals = db.prepare(
-      "SELECT * FROM deals WHERE contact_id = ? AND stage NOT IN ('fechado_ganho','fechado_perdido')"
-    ).all(req.params.id);
+    const activeDeals = (await query(
+      "SELECT * FROM deals WHERE contact_id = $1 AND stage NOT IN ('fechado_ganho','fechado_perdido')",
+      [req.params.id]
+    )).rows;
 
     const DEAL_STAGES = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho'];
 
     if (activeDeals.length === 0) {
-      const dealResult = db.prepare(`
+      const dealRes = await query(`
         INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(`Negócio - ${contact.name}`, req.params.id, nextStatus, getProbability(nextStatus), contact.crm_type || 'investimento', req.user.id);
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+      `, [`Negócio - ${contact.name}`, req.params.id, nextStatus, getProbability(nextStatus), contact.crm_type || 'investimento', req.user.id]);
 
-      db.prepare(`
+      await query(`
         INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
-        VALUES ('stage_change', ?, ?, ?, ?, ?)
-      `).run(`Negócio criado automaticamente na etapa: ${nextStatus}`, req.params.id, dealResult.lastInsertRowid, contact.crm_type || 'investimento', req.user.id);
+        VALUES ('stage_change', $1, $2, $3, $4, $5)
+      `, [`Negócio criado automaticamente na etapa: ${nextStatus}`, req.params.id, dealRes.rows[0].id, contact.crm_type || 'investimento', req.user.id]);
     } else {
       for (const deal of activeDeals) {
         const dealIdx = DEAL_STAGES.indexOf(deal.stage);
         const nextDealStage = dealIdx < DEAL_STAGES.length - 1 ? DEAL_STAGES[dealIdx + 1] : deal.stage;
-        db.prepare('UPDATE deals SET stage = ?, probability = ? WHERE id = ?')
-          .run(nextDealStage, getProbability(nextDealStage), deal.id);
+        await query('UPDATE deals SET stage = $1, probability = $2 WHERE id = $3', [nextDealStage, getProbability(nextDealStage), deal.id]);
 
-        db.prepare(`
+        await query(`
           INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
-          VALUES ('stage_change', ?, ?, ?, ?, ?)
-        `).run(`Etapa avançada para: ${nextDealStage}`, req.params.id, deal.id, contact.crm_type || 'investimento', req.user.id);
+          VALUES ('stage_change', $1, $2, $3, $4, $5)
+        `, [`Etapa avançada para: ${nextDealStage}`, req.params.id, deal.id, contact.crm_type || 'investimento', req.user.id]);
       }
     }
 
-    db.prepare(`
+    await query(`
       INSERT INTO activities (type, description, contact_id, crm_type, user_id)
-      VALUES ('status_change', ?, ?, ?, ?)
-    `).run(`Status avançado para: ${nextStatus}`, req.params.id, contact.crm_type || 'investimento', req.user.id);
+      VALUES ('status_change', $1, $2, $3, $4)
+    `, [`Status avançado para: ${nextStatus}`, req.params.id, contact.crm_type || 'investimento', req.user.id]);
 
-    const updated = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    const updated = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -221,16 +216,15 @@ router.post('/:id/advance', (req, res) => {
 });
 
 // PATCH /:id/briefing
-router.patch('/:id/briefing', (req, res) => {
+router.patch('/:id/briefing', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM contacts WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM contacts WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
     }
     const { notes } = req.body;
-    db.prepare('UPDATE contacts SET notes = ? WHERE id = ?').run(notes, req.params.id);
+    await query('UPDATE contacts SET notes = $1 WHERE id = $2', [notes, req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -238,22 +232,21 @@ router.patch('/:id/briefing', (req, res) => {
 });
 
 // PATCH /:id/aum
-router.patch('/:id/aum', (req, res) => {
+router.patch('/:id/aum', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM contacts WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM contacts WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
     }
     const { aum } = req.body;
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
-    db.prepare('UPDATE contacts SET aum = ? WHERE id = ?').run(aum, req.params.id);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
+    await query('UPDATE contacts SET aum = $1 WHERE id = $2', [aum, req.params.id]);
 
-    db.prepare(`
+    await query(`
       INSERT INTO activities (type, description, contact_id, crm_type, user_id)
-      VALUES ('aum_update', ?, ?, ?, ?)
-    `).run(`AUM atualizado para R$ ${Number(aum).toLocaleString('pt-BR')}`, req.params.id, contact ? contact.crm_type : 'investimento', req.user.id);
+      VALUES ('aum_update', $1, $2, $3, $4)
+    `, [`AUM atualizado para R$ ${Number(aum).toLocaleString('pt-BR')}`, req.params.id, contact ? contact.crm_type : 'investimento', req.user.id]);
 
     res.json({ success: true });
   } catch (err) {
@@ -262,12 +255,11 @@ router.patch('/:id/aum', (req, res) => {
 });
 
 // PATCH /:id/suitability
-router.patch('/:id/suitability', (req, res) => {
+router.patch('/:id/suitability', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM contacts WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM contacts WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
     }
     const allowed = ['investor_profile', 'portfolio', 'liquidity_horizon', 'bank_name', 'bank_agency', 'bank_account'];
@@ -275,12 +267,12 @@ router.patch('/:id/suitability', (req, res) => {
 
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
 
-    const setClauses = fields.map(f => `${f} = ?`).join(', ');
+    const setClauses = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
     const values = fields.map(f => req.body[f]);
     values.push(req.params.id);
 
-    db.prepare(`UPDATE contacts SET ${setClauses} WHERE id = ?`).run(...values);
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    await query(`UPDATE contacts SET ${setClauses} WHERE id = $${values.length}`, values);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -288,20 +280,19 @@ router.patch('/:id/suitability', (req, res) => {
 });
 
 // PATCH /:id/personal
-router.patch('/:id/personal', (req, res) => {
+router.patch('/:id/personal', async (req, res) => {
   try {
-    const db = getDB();
     const isMaster = req.user.role === 'master';
     if (!isMaster) {
-      const record = db.prepare('SELECT user_id FROM contacts WHERE id = ?').get(req.params.id);
+      const record = (await query('SELECT user_id FROM contacts WHERE id = $1', [req.params.id])).rows[0];
       if (!record || record.user_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
     }
     const { address, profession, monthly_income, marital_status, birth_date, age } = req.body;
-    db.prepare(`
-      UPDATE contacts SET address=?, profession=?, monthly_income=?, marital_status=?, birth_date=?, age=?
-      WHERE id=?
-    `).run(address, profession, monthly_income, marital_status, birth_date, age, req.params.id);
-    const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+    await query(`
+      UPDATE contacts SET address=$1, profession=$2, monthly_income=$3, marital_status=$4, birth_date=$5, age=$6
+      WHERE id=$7
+    `, [address, profession, monthly_income, marital_status, birth_date, age, req.params.id]);
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -309,35 +300,27 @@ router.patch('/:id/personal', (req, res) => {
 });
 
 // POST /import - bulk import
-router.post('/import', (req, res) => {
+router.post('/import', async (req, res) => {
   try {
-    const db = getDB();
     const { contacts, crm_type = 'investimento' } = req.body;
     if (!Array.isArray(contacts)) return res.status(400).json({ error: 'contacts must be array' });
 
-    const insert = db.prepare(`
-      INSERT INTO contacts (name, email, phone, company, status, notes, aum,
-        investor_profile, portfolio, liquidity_horizon, crm_type, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const importMany = db.transaction((items) => {
-      let count = 0;
-      for (const c of items) {
-        insert.run(
-          c.name || '', c.email || '', c.phone || '', c.company || '',
-          c.status || 'prospecting', c.notes || '',
-          parseFloat(c.aum) || 0,
-          c.investor_profile || '', c.portfolio || '', c.liquidity_horizon || '',
-          c.crm_type || crm_type,
-          req.user.id
-        );
-        count++;
-      }
-      return count;
-    });
-
-    const count = importMany(contacts);
+    let count = 0;
+    for (const c of contacts) {
+      await query(`
+        INSERT INTO contacts (name, email, phone, company, status, notes, aum,
+          investor_profile, portfolio, liquidity_horizon, crm_type, user_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `, [
+        c.name || '', c.email || '', c.phone || '', c.company || '',
+        c.status || 'prospecting', c.notes || '',
+        parseFloat(c.aum) || 0,
+        c.investor_profile || '', c.portfolio || '', c.liquidity_horizon || '',
+        c.crm_type || crm_type,
+        req.user.id
+      ]);
+      count++;
+    }
     res.json({ imported: count });
   } catch (err) {
     res.status(500).json({ error: err.message });
