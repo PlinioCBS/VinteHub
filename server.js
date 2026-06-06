@@ -78,6 +78,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve React frontend (built files)
+const frontendDist = path.join(__dirname, 'frontend', 'dist');
+if (require('fs').existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);

@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Lato', sans-serif;
+    background-color: #f5f4f2;
+    color: #353535;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Libre Baskerville', serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-green text-white px-4 py-2 rounded-lg font-sans font-bold hover:opacity-90 transition-opacity;
+  }
+
+  .btn-secondary {
+    @apply bg-white border border-brand-gray text-charcoal px-4 py-2 rounded-lg font-sans hover:bg-cream transition-colors;
+  }
+
+  .btn-copper {
+    @apply bg-copper text-white px-4 py-2 rounded-lg font-sans font-bold hover:opacity-90 transition-opacity;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-brand-gray shadow-sm;
+  }
+
+  .input-field {
+    @apply w-full border border-brand-gray rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green focus:ring-1 focus:ring-green bg-white;
+  }
+
+  .label {
+    @apply block text-xs font-sans font-bold text-charcoal mb-1 uppercase tracking-wide opacity-60;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f5f4f2; }
+::-webkit-scrollbar-thumb { background: #d9d9d6; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #7A5137; }
+
+/* Kanban drag */
+.kanban-col { min-height: 200px; }
+.drag-over { background-color: rgba(53, 86, 65, 0.06); border: 2px dashed #355641; border-radius: 12px; }
+
+/* Progress bar animation */
+.progress-bar { transition: width 0.6s ease; }
+
+/* Calendar */
+.calendar-cell { min-height: 80px; }
+.calendar-cell:hover { background-color: rgba(53, 86, 65, 0.04); }
