@@ -85,7 +85,23 @@ router.post('/', async (req, res) => {
       investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
       address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id]);
 
-    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [result.rows[0].id])).rows[0];
+    const contactId = result.rows[0].id;
+
+    // Cria deal no Pipeline automaticamente para etapas do funil (exceto cliente/inativo)
+    const pipelineStages = ['prospecting', 'qualificacao', 'proposta', 'negociacao'];
+    if (pipelineStages.includes(status)) {
+      const dealRes = await query(`
+        INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+      `, [`Negócio - ${name}`, contactId, status, getProbability(status), crm_type, req.user.id]);
+
+      await query(`
+        INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
+        VALUES ('deal_created', $1, $2, $3, $4, $5)
+      `, [`Negócio criado automaticamente para: ${name}`, contactId, dealRes.rows[0].id, crm_type, req.user.id]);
+    }
+
+    const contact = (await query('SELECT * FROM contacts WHERE id = $1', [contactId])).rows[0];
     res.status(201).json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });

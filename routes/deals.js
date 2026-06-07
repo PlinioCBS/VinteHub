@@ -145,13 +145,20 @@ router.put('/:id', async (req, res) => {
         VALUES ('stage_change', $1, $2, $3, $4, $5)
       `, [`Negócio movido de ${existing.stage} para ${stage}`, b.contact_id || existing.contact_id, req.params.id, b.crm_type || existing.crm_type, req.user.id]);
 
-      // Sync contact status when moving to/from cliente_ativo
+      // Sync contact status when deal stage changes
       const contactId = b.contact_id ?? existing.contact_id;
       if (contactId) {
-        if (stage === 'cliente_ativo') {
-          await query("UPDATE contacts SET status = 'cliente' WHERE id = $1", [contactId]);
-        } else if (existing.stage === 'cliente_ativo' && stage === 'negociacao') {
-          await query("UPDATE contacts SET status = 'negociacao' WHERE id = $1", [contactId]);
+        const stageToStatus = {
+          prospecting: 'prospecting',
+          qualificacao: 'qualificacao',
+          proposta: 'proposta',
+          negociacao: 'negociacao',
+          fechado_ganho: 'negociacao', // mantém em negociação até virar cliente ativo
+          cliente_ativo: 'cliente',
+        };
+        const newContactStatus = stageToStatus[stage];
+        if (newContactStatus) {
+          await query('UPDATE contacts SET status = $1 WHERE id = $2', [newContactStatus, contactId]);
         }
       }
     }
