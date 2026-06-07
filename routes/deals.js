@@ -8,6 +8,7 @@ const STAGE_PROB = {
   proposta: 50,
   negociacao: 75,
   fechado_ganho: 100,
+  cliente_ativo: 100,
   fechado_perdido: 0
 };
 
@@ -40,7 +41,7 @@ router.get('/by-stage', async (req, res) => {
   try {
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    const stages = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho'];
+    const stages = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho', 'cliente_ativo'];
     const result = {};
 
     for (const stage of stages) {
@@ -143,6 +144,16 @@ router.put('/:id', async (req, res) => {
         INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
         VALUES ('stage_change', $1, $2, $3, $4, $5)
       `, [`Negócio movido de ${existing.stage} para ${stage}`, b.contact_id || existing.contact_id, req.params.id, b.crm_type || existing.crm_type, req.user.id]);
+
+      // Sync contact status when moving to/from cliente_ativo
+      const contactId = b.contact_id ?? existing.contact_id;
+      if (contactId) {
+        if (stage === 'cliente_ativo') {
+          await query("UPDATE contacts SET status = 'cliente' WHERE id = $1", [contactId]);
+        } else if (existing.stage === 'cliente_ativo' && stage === 'negociacao') {
+          await query("UPDATE contacts SET status = 'negociacao' WHERE id = $1", [contactId]);
+        }
+      }
     }
 
     const deal = (await query('SELECT * FROM deals WHERE id = $1', [req.params.id])).rows[0];
