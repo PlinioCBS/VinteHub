@@ -339,21 +339,25 @@ async function initDB() {
       );
     }
 
-    // Assign user_ids to seeded data
+    // Assign user_ids to seeded data — sempre usa o master para garantir que os dados apareçam
+    const masterRow = (await query("SELECT id FROM users WHERE role = 'master' LIMIT 1")).rows[0];
     const camilaRow = (await query("SELECT id FROM users WHERE email = 'camila@vintebrava.com'")).rows[0];
     const lucasRow = (await query("SELECT id FROM users WHERE email = 'lucas@vintebrava.com'")).rows[0];
 
-    if (camilaRow) {
-      await query("UPDATE contacts SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [camilaRow.id]);
-      await query("UPDATE deals SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [camilaRow.id]);
-      await query("UPDATE tasks SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [camilaRow.id]);
-      await query("UPDATE activities SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [camilaRow.id]);
+    const investOwner = camilaRow || masterRow;
+    const creditOwner = lucasRow || masterRow;
+
+    if (investOwner) {
+      await query("UPDATE contacts SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [investOwner.id]);
+      await query("UPDATE deals SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [investOwner.id]);
+      await query("UPDATE tasks SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [investOwner.id]);
+      await query("UPDATE activities SET user_id = $1 WHERE crm_type IN ('investimento','cambio') AND user_id IS NULL", [investOwner.id]);
     }
-    if (lucasRow) {
-      await query("UPDATE contacts SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [lucasRow.id]);
-      await query("UPDATE deals SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [lucasRow.id]);
-      await query("UPDATE tasks SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [lucasRow.id]);
-      await query("UPDATE activities SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [lucasRow.id]);
+    if (creditOwner) {
+      await query("UPDATE contacts SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [creditOwner.id]);
+      await query("UPDATE deals SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [creditOwner.id]);
+      await query("UPDATE tasks SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [creditOwner.id]);
+      await query("UPDATE activities SET user_id = $1 WHERE crm_type IN ('credito','seguro') AND user_id IS NULL", [creditOwner.id]);
     }
 
     console.log('Fake data seeded successfully');

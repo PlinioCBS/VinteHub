@@ -29,8 +29,8 @@ router.get('/stats', async (req, res) => {
 
     const totalContacts = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status != 'inativo'${f.crmF}${f.userF}`, f.params)).rows[0].c);
     const newLeads = parseInt((await query(`SELECT COUNT(*) as c FROM contacts WHERE status = 'prospecting'${f.crmF}${f.userF}`, f.params)).rows[0].c);
-    const openDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','fechado_perdido')${f.crmF}${f.userF}`, f.params)).rows[0].c);
-    const wonDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage = 'fechado_ganho'${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const openDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage NOT IN ('fechado_ganho','cliente_ativo','fechado_perdido')${f.crmF}${f.userF}`, f.params)).rows[0].c);
+    const wonDeals = parseInt((await query(`SELECT COUNT(*) as c FROM deals WHERE stage IN ('fechado_ganho','cliente_ativo')${f.crmF}${f.userF}`, f.params)).rows[0].c);
     const pendingTasks = parseInt((await query(`SELECT COUNT(*) as c FROM tasks WHERE status = 'pending'${f.crmF}${f.userF}`, f.params)).rows[0].c);
 
     // overdue tasks needs extra param for date
