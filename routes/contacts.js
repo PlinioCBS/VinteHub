@@ -343,23 +343,87 @@ router.post('/import', async (req, res) => {
     const { contacts, crm_type = 'investimento' } = req.body;
     if (!Array.isArray(contacts)) return res.status(400).json({ error: 'contacts must be array' });
 
+    const pipelineStages = ['prospecting', 'qualificacao', 'proposta', 'negociacao'];
     let count = 0;
     for (const c of contacts) {
-      await query(`
+      const status = c.status || 'prospecting';
+      const crmType = c.crm_type || crm_type;
+      const result = await query(`
         INSERT INTO contacts (name, email, phone, company, status, notes, aum,
           investor_profile, portfolio, liquidity_horizon, crm_type, user_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id
       `, [
         c.name || '', c.email || '', c.phone || '', c.company || '',
-        c.status || 'prospecting', c.notes || '',
+        status, c.notes || '',
         parseFloat(c.aum) || 0,
         c.investor_profile || '', c.portfolio || '', c.liquidity_horizon || '',
-        c.crm_type || crm_type,
+        crmType,
         req.user.id
       ]);
+      const contactId = result.rows[0].id;
+
+      // Auto-create deal in Pipeline for pipeline-stage contacts
+      if (pipelineStages.includes(status)) {
+        try {
+          const existing = (await query(
+            "SELECT id FROM deals WHERE contact_id = $1 AND stage NOT IN ('fechado_ganho','fechado_perdido','cliente_ativo') LIMIT 1",
+            [contactId]
+          )).rows[0];
+          if (!existing) {
+            const dealRes = await query(
+              `INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+              [`Negócio - ${c.name || ''}`, contactId, status, getProbability(status), crmType, req.user.id]
+            );
+            await query(
+              `INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id) VALUES ('deal_created',$1,$2,$3,$4,$5)`,
+              [`Negócio criado automaticamente para: ${c.name || ''}`, contactId, dealRes.rows[0].id, crmType, req.user.id]
+            );
+          }
+        } catch (dealErr) {
+          console.error('Erro ao criar deal no import:', dealErr.message);
+        }
+      }
       count++;
     }
     res.json({ imported: count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /backfill-deals - create missing deals for existing pipeline-stage contacts
+router.post('/backfill-deals', async (req, res) => {
+  try {
+    const pipelineStages = ['prospecting', 'qualificacao', 'proposta', 'negociacao'];
+    // Find contacts in pipeline stages that have no active deal
+    const orphans = (await query(
+      `SELECT c.id, c.name, c.status, c.crm_type, c.user_id
+       FROM contacts c
+       WHERE c.status = ANY($1)
+         AND NOT EXISTS (
+           SELECT 1 FROM deals d WHERE d.contact_id = c.id
+             AND d.stage NOT IN ('fechado_ganho','fechado_perdido','cliente_ativo')
+         )`,
+      [pipelineStages]
+    )).rows;
+
+    let created = 0;
+    for (const c of orphans) {
+      try {
+        const dealRes = await query(
+          `INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [`Negócio - ${c.name}`, c.id, c.status, getProbability(c.status), c.crm_type, c.user_id]
+        );
+        await query(
+          `INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id) VALUES ('deal_created',$1,$2,$3,$4,$5)`,
+          [`Negócio criado automaticamente para: ${c.name}`, c.id, dealRes.rows[0].id, c.crm_type, c.user_id]
+        );
+        created++;
+      } catch (e) {
+        console.error('backfill deal error:', e.message);
+      }
+    }
+    res.json({ backfilled: created, total_orphans: orphans.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
