@@ -22,10 +22,15 @@ router.get('/', async (req, res) => {
     if (status) {
       sql += ` AND status = $${idx++}`;
       params.push(status);
-    }
-    if (!status && excludeStatus) {
+    } else {
+      // Sempre exclui 'cliente' por padrão (a menos que status='cliente' seja explicitamente pedido)
       sql += ` AND status != $${idx++}`;
-      params.push(excludeStatus);
+      params.push('cliente');
+      // Se veio excludeStatus adicional (ex: 'inativo'), exclui também
+      if (excludeStatus && excludeStatus !== 'cliente') {
+        sql += ` AND status != $${idx++}`;
+        params.push(excludeStatus);
+      }
     }
     if (crm_type) {
       sql += ` AND crm_type = $${idx++}`;
