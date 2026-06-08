@@ -92,18 +92,31 @@ router.post('/', async (req, res) => {
 
     const contactId = result.rows[0].id;
 
-    // Cria deal no Pipeline automaticamente para etapas do funil (exceto cliente/inativo)
+    // Cria deal no Pipeline automaticamente para etapas do funil
     const pipelineStages = ['prospecting', 'qualificacao', 'proposta', 'negociacao'];
     if (pipelineStages.includes(status)) {
-      const dealRes = await query(`
-        INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-      `, [`Negócio - ${name}`, contactId, status, getProbability(status), crm_type, req.user.id]);
+      try {
+        // Verifica se já existe deal ativo para não duplicar
+        const existing = (await query(
+          "SELECT id FROM deals WHERE contact_id = $1 AND stage NOT IN ('fechado_ganho','fechado_perdido','cliente_ativo') LIMIT 1",
+          [contactId]
+        )).rows[0];
 
-      await query(`
-        INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
-        VALUES ('deal_created', $1, $2, $3, $4, $5)
-      `, [`Negócio criado automaticamente para: ${name}`, contactId, dealRes.rows[0].id, crm_type, req.user.id]);
+        if (!existing) {
+          const dealRes = await query(`
+            INSERT INTO deals (title, contact_id, stage, probability, crm_type, user_id)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+          `, [`Negócio - ${name}`, contactId, status, getProbability(status), crm_type, req.user.id]);
+
+          await query(`
+            INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)
+            VALUES ('deal_created', $1, $2, $3, $4, $5)
+          `, [`Negócio criado automaticamente para: ${name}`, contactId, dealRes.rows[0].id, crm_type, req.user.id]);
+        }
+      } catch (dealErr) {
+        // Não falha a criação do contato por causa de erro no deal
+        console.error('Erro ao criar deal automático:', dealErr.message);
+      }
     }
 
     const contact = (await query('SELECT * FROM contacts WHERE id = $1', [contactId])).rows[0];
