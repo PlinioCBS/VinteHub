@@ -77,11 +77,11 @@ router.get('/stats', async (req, res) => {
       fa.params
     )).rows;
 
-    // Tasks with table alias + today filter
+    // Tasks with explicit table alias to avoid ambiguous column (tasks JOIN contacts both have crm_type/user_id)
     const ft = buildFilters2([today]);
     const upcomingTasksParams = ft.params;
     const upcomingTasks = (await query(
-      `SELECT t.*, c.name as contact_name FROM tasks t LEFT JOIN contacts c ON t.contact_id = c.id WHERE t.status = 'pending' AND t.due_date >= $1${ft.crmF}${ft.userF} ORDER BY t.due_date ASC LIMIT 5`,
+      `SELECT t.*, c.name as contact_name FROM tasks t LEFT JOIN contacts c ON t.contact_id = c.id WHERE t.status = 'pending' AND t.due_date >= $1${ft.crmF.replace(/crm_type/g, 't.crm_type').replace(/user_id/g, 't.user_id')}${ft.userF.replace(/crm_type/g, 't.crm_type').replace(/user_id/g, 't.user_id')} ORDER BY t.due_date ASC LIMIT 5`,
       upcomingTasksParams
     )).rows;
 
