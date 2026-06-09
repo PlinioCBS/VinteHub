@@ -106,7 +106,8 @@ router.post('/import-pdf', requireMaster, pdfUpload.single('pdf'), async (req, r
       WHERE cp.contract_number IS NOT NULL AND cp.contract_number != ''
     `)).rows;
 
-    const TAX_RATE = 0.12;
+    const taxRow = (await query("SELECT value FROM settings WHERE key = 'tax_rate'")).rows[0];
+    const TAX_RATE = taxRow ? parseFloat(taxRow.value) || 0.12 : 0.12;
 
     const matched = [];
     const unmatched = [];

@@ -144,6 +144,18 @@ async function initDB() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS product_catalog (
+      id SERIAL PRIMARY KEY,
+      crm_type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      value_key TEXT NOT NULL,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(crm_type, value_key)
+    )
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
@@ -166,9 +178,32 @@ async function initDB() {
     ['captacao_goal_seguro', '8000000'],
     ['fee_percent', '0.55'],
     ['captacao_goal', '30000000'],
+    ['tax_rate', '0.12'],
   ];
   for (const [k, v] of settingPairs) {
     await query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT DO NOTHING', [k, v]);
+  }
+
+  // Seed product catalog
+  const defaultProducts = [
+    { crm_type: 'credito', name: 'Consórcio Porto', value_key: 'consorcio_porto' },
+    { crm_type: 'credito', name: 'Consórcio BancorBras', value_key: 'consorcio_bancorbras' },
+    { crm_type: 'credito', name: 'Carta Contemplada', value_key: 'carta_contemplada' },
+    { crm_type: 'credito', name: 'Financiamento', value_key: 'financiamento' },
+    { crm_type: 'cambio', name: 'Câmbio Comercial', value_key: 'cambio_comercial' },
+    { crm_type: 'cambio', name: 'Câmbio Turismo', value_key: 'cambio_turismo' },
+    { crm_type: 'cambio', name: 'Remessa Internacional', value_key: 'remessa_internacional' },
+    { crm_type: 'cambio', name: 'Câmbio Importação', value_key: 'cambio_importacao' },
+    { crm_type: 'seguro', name: 'Seguro de Vida', value_key: 'seguro_vida' },
+    { crm_type: 'seguro', name: 'Seguro Auto', value_key: 'seguro_auto' },
+    { crm_type: 'seguro', name: 'Seguro Residencial', value_key: 'seguro_residencial' },
+    { crm_type: 'seguro', name: 'Seguro Empresarial', value_key: 'seguro_empresarial' },
+  ];
+  for (const p of defaultProducts) {
+    await query(
+      'INSERT INTO product_catalog (crm_type, name, value_key) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [p.crm_type, p.name, p.value_key]
+    );
   }
 
   // Seed master user

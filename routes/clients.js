@@ -126,7 +126,9 @@ router.get('/', async (req, res) => {
       const totalRevenue = (c.aum || 0) * (fee / 100);
       const openTasks = parseInt((await query("SELECT COUNT(*) as cnt FROM tasks WHERE contact_id = $1 AND status = 'pending'", [c.id])).rows[0].cnt);
       const lastActivityRow = (await query("SELECT created_at FROM activities WHERE contact_id = $1 ORDER BY created_at DESC LIMIT 1", [c.id])).rows[0];
-      return { ...c, wonDeals, totalRevenue, openTasks, lastActivity: lastActivityRow ? lastActivityRow.created_at : null };
+      // Count products (for credito/cambio/seguro CRMs)
+      const productCount = parseInt((await query("SELECT COUNT(*) as cnt FROM client_products WHERE contact_id = $1", [c.id])).rows[0].cnt);
+      return { ...c, wonDeals, totalRevenue, openTasks, lastActivity: lastActivityRow ? lastActivityRow.created_at : null, product_count: productCount };
     }));
 
     const totalAUM = enriched.reduce((s, c) => s + (parseFloat(c.aum) || 0), 0);

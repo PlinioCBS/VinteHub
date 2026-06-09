@@ -15,6 +15,7 @@ const dashboardRouter = require('./routes/dashboard');
 const adminUsersRouter = require('./routes/adminUsers');
 const financeiroRouter = require('./routes/financeiro');
 const productsRouter = require('./routes/products');
+const productCatalogRouter = require('./routes/productCatalog');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -69,6 +70,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/admin/users', adminUsersRouter);
 app.use('/api/financeiro', financeiroRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/product-catalog', productCatalogRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
