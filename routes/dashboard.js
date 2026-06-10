@@ -146,18 +146,45 @@ router.get('/general', async (req, res) => {
       LIMIT 20
     `)).rows;
 
-    const portoTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_porto'`)).rows[0].t) || 0;
-    const bancorbrasTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'consorcio_bancorbras'`)).rows[0].t) || 0;
-    const cartaTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'carta_contemplada'`)).rows[0].t) || 0;
-    const financiamentoTotal = parseFloat((await query(`SELECT COALESCE(SUM(credit_value), 0) as t FROM client_products WHERE product_type = 'financiamento'`)).rows[0].t) || 0;
+    // Per-product totals (credit_value sum)
+    const productTotalsRows = (await query(`
+      SELECT p.product_type, COALESCE(SUM(p.credit_value), 0) as total
+      FROM client_products p
+      GROUP BY p.product_type
+    `)).rows;
+    const productTotals = {};
+    for (const r of productTotalsRows) productTotals[r.product_type] = parseFloat(r.total) || 0;
+
+    // Fetch FEE per product from catalog (all CRMs)
+    const catalogRows = (await query(`SELECT crm_type, value_key, name, fee_percent FROM product_catalog WHERE active = true`)).rows;
+    const catalogByKey = {};
+    for (const r of catalogRows) catalogByKey[r.value_key] = r;
+
+    // Crédito summary with per-product FEEs
+    const portoTotal      = productTotals['consorcio_porto']      || 0;
+    const bancorbrasTotal = productTotals['consorcio_bancorbras'] || 0;
+    const cartaTotal      = productTotals['carta_contemplada']    || 0;
+    const financiamentoTotal = productTotals['financiamento']     || 0;
     const creditGrandTotal = portoTotal + bancorbrasTotal + cartaTotal + financiamentoTotal;
+
+    // Build per-product entries with fee
+    const creditoFeeDefault = perCRM.find(c => c.crm_type === 'credito')?.fee || 0.55;
+    const productEntries = catalogRows.filter(r => r.crm_type === 'credito').map(r => ({
+      value_key: r.value_key,
+      name: r.name,
+      total: productTotals[r.value_key] || 0,
+      fee_percent: r.fee_percent != null ? r.fee_percent : creditoFeeDefault,
+      has_own_fee: r.fee_percent != null,
+    }));
 
     const credito_summary = {
       porto_total: portoTotal,
       bancorbras_total: bancorbrasTotal,
       carta_total: cartaTotal,
       financiamento_total: financiamentoTotal,
-      grand_total: creditGrandTotal
+      grand_total: creditGrandTotal,
+      product_entries: productEntries,
+      catalog_by_key: catalogByKey,
     };
 
     res.json({
