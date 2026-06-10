@@ -24,11 +24,11 @@ router.get('/', async (req, res) => {
 // POST /api/product-catalog
 router.post('/', requireMaster, async (req, res) => {
   try {
-    const { crm_type, name, value_key } = req.body;
+    const { crm_type, name, value_key, fee_percent } = req.body;
     if (!crm_type || !name || !value_key) return res.status(400).json({ error: 'crm_type, name e value_key são obrigatórios' });
     const result = await query(
-      'INSERT INTO product_catalog (crm_type, name, value_key) VALUES ($1, $2, $3) RETURNING *',
-      [crm_type, name, value_key]
+      'INSERT INTO product_catalog (crm_type, name, value_key, fee_percent) VALUES ($1, $2, $3, $4) RETURNING *',
+      [crm_type, name, value_key, fee_percent != null ? parseFloat(fee_percent) : null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -40,12 +40,13 @@ router.post('/', requireMaster, async (req, res) => {
 // PUT /api/product-catalog/:id
 router.put('/:id', requireMaster, async (req, res) => {
   try {
-    const { name, value_key, active } = req.body;
+    const { name, value_key, active, fee_percent } = req.body;
     const existing = (await query('SELECT * FROM product_catalog WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Produto não encontrado' });
+    const newFee = fee_percent !== undefined ? (fee_percent === '' || fee_percent === null ? null : parseFloat(fee_percent)) : existing.fee_percent;
     const result = await query(
-      'UPDATE product_catalog SET name=$1, value_key=$2, active=$3 WHERE id=$4 RETURNING *',
-      [name ?? existing.name, value_key ?? existing.value_key, active ?? existing.active, req.params.id]
+      'UPDATE product_catalog SET name=$1, value_key=$2, active=$3, fee_percent=$4 WHERE id=$5 RETURNING *',
+      [name ?? existing.name, value_key ?? existing.value_key, active ?? existing.active, newFee, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {

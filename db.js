@@ -149,11 +149,14 @@ async function initDB() {
       crm_type TEXT NOT NULL,
       name TEXT NOT NULL,
       value_key TEXT NOT NULL,
+      fee_percent REAL DEFAULT NULL,
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(crm_type, value_key)
     )
   `);
+  // Migration: add fee_percent to existing product_catalog tables
+  await query(`ALTER TABLE product_catalog ADD COLUMN IF NOT EXISTS fee_percent REAL DEFAULT NULL`).catch(() => {});
 
   await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
