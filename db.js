@@ -157,6 +157,8 @@ async function initDB() {
   `);
   // Migration: add fee_percent to existing product_catalog tables
   await query(`ALTER TABLE product_catalog ADD COLUMN IF NOT EXISTS fee_percent REAL DEFAULT NULL`).catch(() => {});
+  // Migration: add taxa_percent to client_products (employee commission per product)
+  await query(`ALTER TABLE client_products ADD COLUMN IF NOT EXISTS taxa_percent REAL DEFAULT NULL`).catch(() => {});
 
   await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
