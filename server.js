@@ -58,6 +58,7 @@ app.use('/api/auth', (req, res, next) => {
 // Apply auth middleware to all other /api/* routes
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth')) return next();
+  if (req.path.startsWith('/market-data')) return next(); // public — market data has no PII
   authMiddleware(req, res, next);
 });
 
