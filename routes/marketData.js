@@ -2,12 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const TIMEOUT_MS = 10000;
+function signal() { return AbortSignal.timeout(TIMEOUT_MS); }
 
-function signal() {
-  return AbortSignal.timeout(TIMEOUT_MS);
-}
-
-// Simple in-memory cache (60s TTL)
 const cache = {};
 function fromCache(key) {
   const e = cache[key];
@@ -15,7 +11,7 @@ function fromCache(key) {
 }
 function toCache(key, data) { cache[key] = { ts: Date.now(), data }; }
 
-// HG Brasil Finance — free, no key, has IBOVESPA, IFIX, NASDAQ, DOWJONES
+// HG Brasil Finance — free, IBOVESPA, IFIX, NASDAQ, DOWJONES
 async function hgFetch() {
   try {
     const res = await fetch('https://api.hgbrasil.com/finance?format=json-cors', {
@@ -39,7 +35,7 @@ async function hgFetch() {
   } catch { return null; }
 }
 
-// Yahoo Finance — for S&P 500 and NYSE (not in HG Brasil)
+// Yahoo Finance — basic quote (price + pct change)
 async function yhFetch(symbol) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
@@ -65,7 +61,61 @@ async function yhFetch(symbol) {
   } catch { return null; }
 }
 
-// FRED — Federal Reserve FEDFUNDS official rate (Node fetch uses HTTP/2, required by FRED)
+// Yahoo Finance — full quote for favorites (includes day high/low, brapi-compatible shape)
+async function yhFetchFull(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VinteHub/1.0)' },
+      signal: signal(),
+    });
+    if (!res.ok) return null;
+    const parsed = await res.json();
+    const meta = parsed.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice;
+    const prev  = meta.chartPreviousClose || meta.previousClose;
+    const changePct = prev ? ((price - prev) / prev) * 100 : 0;
+    return {
+      symbol:                     meta.symbol || symbol,
+      shortName:                  meta.shortName || meta.longName || symbol,
+      regularMarketPrice:         price,
+      regularMarketChange:        parseFloat((price - (prev || price)).toFixed(4)),
+      regularMarketChangePercent: parseFloat(changePct.toFixed(4)),
+      regularMarketDayHigh:       meta.regularMarketDayHigh || null,
+      regularMarketDayLow:        meta.regularMarketDayLow  || null,
+      currency:                   meta.currency || '',
+    };
+  } catch { return null; }
+}
+
+// Yahoo Finance — historical closes for performance chart
+async function yhHistoryFetch(symbol, range = '3mo') {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VinteHub/1.0)' },
+      signal: signal(),
+    });
+    if (!res.ok) return null;
+    const parsed = await res.json();
+    const result = parsed.chart?.result?.[0];
+    if (!result) return null;
+    const timestamps = result.timestamp || [];
+    const closes = result.indicators?.quote?.[0]?.close || [];
+    const firstClose = closes.find(c => c != null);
+    if (!firstClose) return null;
+    return timestamps
+      .map((ts, i) => ({
+        date:  new Date(ts * 1000).toISOString().split('T')[0],
+        close: closes[i],
+        pct:   closes[i] != null ? parseFloat(((closes[i] - firstClose) / firstClose * 100).toFixed(2)) : null,
+      }))
+      .filter(p => p.close != null);
+  } catch { return null; }
+}
+
+// FRED — Federal Reserve FEDFUNDS
 async function fredFetch() {
   try {
     const res = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS', {
@@ -92,7 +142,6 @@ router.get('/indices', async (req, res) => {
   ]);
 
   const hgData = hg.status === 'fulfilled' ? hg.value : null;
-
   const data = {
     ibov:     hgData?.ibov     || null,
     ifix:     hgData?.ifix     || null,
@@ -114,6 +163,69 @@ router.get('/fed', async (req, res) => {
   const data = await fredFetch();
   if (!data) return res.status(502).json({ error: 'FRED unavailable' });
   toCache('fed', data);
+  res.json(data);
+});
+
+// GET /api/market-data/commodities
+router.get('/commodities', async (req, res) => {
+  const cached = fromCache('commodities');
+  if (cached) return res.json(cached);
+
+  const [wtiRes, brentRes, goldRes] = await Promise.allSettled([
+    yhFetch('CL=F'),
+    yhFetch('BZ=F'),
+    yhFetch('GC=F'),
+  ]);
+
+  const data = {
+    wti:   wtiRes.status   === 'fulfilled' ? wtiRes.value   : null,
+    brent: brentRes.status === 'fulfilled' ? brentRes.value : null,
+    gold:  goldRes.status  === 'fulfilled' ? goldRes.value  : null,
+  };
+
+  toCache('commodities', data);
+  res.json(data);
+});
+
+// GET /api/market-data/history?symbols=^BVSP,^GSPC&range=3mo
+router.get('/history', async (req, res) => {
+  const symbolsParam = (req.query.symbols || '^BVSP,^GSPC').slice(0, 60);
+  const range = ['1mo', '3mo', '6mo', '1y'].includes(req.query.range) ? req.query.range : '3mo';
+  const symbols = symbolsParam.split(',').slice(0, 4);
+  const cacheKey = `hist_${symbolsParam}_${range}`;
+
+  const cached = fromCache(cacheKey);
+  if (cached) return res.json(cached);
+
+  const results = await Promise.allSettled(symbols.map(s => yhHistoryFetch(s, range)));
+  const data = {};
+  symbols.forEach((s, i) => {
+    data[s] = results[i].status === 'fulfilled' ? results[i].value : null;
+  });
+
+  toCache(cacheKey, data);
+  res.json(data);
+});
+
+// GET /api/market-data/quote/:symbol  (for favorites — replaces brapi)
+router.get('/quote/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  if (!symbol || symbol.length > 20) return res.json({ notFound: true, symbol: symbol || '' });
+
+  const cacheKey = `quote_${symbol}`;
+  const cached = fromCache(cacheKey);
+  if (cached) return res.json(cached);
+
+  // Try B3 (.SA) and plain in parallel; take first non-null
+  const [saData, plainData] = await Promise.all([
+    !symbol.includes('.') ? yhFetchFull(`${symbol}.SA`) : Promise.resolve(null),
+    yhFetchFull(symbol),
+  ]);
+
+  const data = saData || plainData;
+  if (!data) return res.json({ notFound: true, symbol });
+
+  toCache(cacheKey, data);
   res.json(data);
 });
 
