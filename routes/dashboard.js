@@ -217,6 +217,7 @@ router.get('/credit-summary', async (req, res) => {
       SELECT
         cp.product_type,
         COALESCE(SUM(cp.credit_value), 0) as total_credit,
+        COALESCE(SUM(cp.credit_value * COALESCE(cp.taxa_percent, 0) / 100), 0) as total_commission,
         COUNT(DISTINCT cp.contact_id) as clients,
         COUNT(*) as products
       FROM client_products cp
@@ -246,15 +247,18 @@ router.get('/credit-summary', async (req, res) => {
     const byType = {};
     let grandTotal = 0;
     let totalProducts = 0;
+    let totalCommission = 0;
 
     for (const r of rows) {
       byType[r.product_type] = {
         total_credit: parseFloat(r.total_credit),
+        total_commission: parseFloat(r.total_commission) || 0,
         clients: parseInt(r.clients),
         products: parseInt(r.products)
       };
       grandTotal += parseFloat(r.total_credit);
       totalProducts += parseInt(r.products);
+      totalCommission += parseFloat(r.total_commission) || 0;
     }
 
     const distinctClients = parseInt((await query(`
@@ -275,6 +279,7 @@ router.get('/credit-summary', async (req, res) => {
       carta_contemplada: carta,
       financiamento,
       grand_total: grandTotal,
+      total_commission: totalCommission,
       total_clients: distinctClients,
       total_products: totalProducts,
       top_clients: topClients

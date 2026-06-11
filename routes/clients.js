@@ -203,4 +203,31 @@ router.post('/:id/renewal', async (req, res) => {
   }
 });
 
+// GET /dolar - USD portfolio clients (investimento CRM)
+router.get('/dolar', async (req, res) => {
+  try {
+    const isMaster = req.user.role === 'master';
+    let sql = "SELECT id, name, phone, company, aum_usd FROM contacts WHERE status = 'cliente' AND crm_type = 'investimento'";
+    const params = [];
+    if (!isMaster) { sql += ` AND user_id = $1`; params.push(req.user.id); }
+    sql += ' ORDER BY aum_usd DESC NULLS LAST, name';
+    const clients = (await query(sql, params)).rows;
+    const totalUSD = clients.reduce((s, c) => s + (parseFloat(c.aum_usd) || 0), 0);
+    res.json({ clients, totalUSD });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /:id/aum-usd
+router.patch('/:id/aum-usd', async (req, res) => {
+  try {
+    const { aum_usd } = req.body;
+    await query('UPDATE contacts SET aum_usd = $1 WHERE id = $2', [parseFloat(aum_usd) || 0, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

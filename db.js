@@ -159,6 +159,8 @@ async function initDB() {
   await query(`ALTER TABLE product_catalog ADD COLUMN IF NOT EXISTS fee_percent REAL DEFAULT NULL`).catch(() => {});
   // Migration: add taxa_percent to client_products (employee commission per product)
   await query(`ALTER TABLE client_products ADD COLUMN IF NOT EXISTS taxa_percent REAL DEFAULT NULL`).catch(() => {});
+  // Migration: add aum_usd to contacts (USD-denominated portfolio for Investimento CRM)
+  await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS aum_usd REAL DEFAULT 0`).catch(() => {});
 
   await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
