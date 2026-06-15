@@ -2,7 +2,18 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { query } = require('../db');
+
+const uploadDir = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const photoStorage = multer.diskStorage({
+  destination: uploadDir,
+  filename: (req, file, cb) => cb(null, `finder-${req.user.id}-${Date.now()}${path.extname(file.originalname)}`),
+});
+const uploadPhoto = multer({ storage: photoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function requireUser(req, res, next) {
@@ -114,6 +125,126 @@ router.post('/portal/leads', requireFinder, async (req, res) => {
     );
 
     res.status(201).json(contact);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/finders/portal/rank — campaign + leaderboard for finder
+router.get('/portal/rank', requireFinder, async (req, res) => {
+  try {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const campaign = (await query(
+      'SELECT * FROM finder_campaigns WHERE consultant_id = $1 AND month = $2',
+      [req.user.consultant_id, currentMonth]
+    )).rows[0];
+
+    if (!campaign) return res.json({ campaign: null, rank: [], myPosition: null, myScore: 0 });
+
+    const scoreCol = campaign.kpi_type === 'credito_producao'
+      ? `COALESCE(SUM(d.value), 0)`
+      : `COUNT(DISTINCT c.id)::REAL`;
+
+    const joinClause = campaign.kpi_type === 'credito_producao'
+      ? `LEFT JOIN deals d ON d.finder_id = f.id AND d.stage IN ('fechado_ganho','cliente_ativo') AND TO_CHAR(d.created_at,'YYYY-MM') = $1`
+      : `LEFT JOIN contacts c ON c.finder_id = f.id AND TO_CHAR(c.created_at,'YYYY-MM') = $1`;
+
+    const sql = `
+      SELECT f.id, f.name, f.photo_url, ${scoreCol} as score
+      FROM finders f
+      ${joinClause}
+      WHERE f.consultant_id = $2 AND f.active = 1
+      GROUP BY f.id, f.name, f.photo_url
+      ORDER BY score DESC
+    `;
+    const rows = (await query(sql, [currentMonth, req.user.consultant_id])).rows;
+    const rank = rows.map((r, i) => ({ ...r, score: parseFloat(r.score) || 0, position: i + 1 }));
+    const me = rank.find(r => r.id === req.user.id);
+
+    res.json({ campaign, rank, myPosition: me?.position ?? null, myScore: me?.score ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/finders/portal/password — finder changes own password
+router.patch('/portal/password', requireFinder, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) return res.status(400).json({ error: 'Senhas obrigatórias' });
+    if (new_password.length < 6) return res.status(400).json({ error: 'Nova senha deve ter ao menos 6 caracteres' });
+
+    const finder = (await query('SELECT * FROM finders WHERE id = $1', [req.user.id])).rows[0];
+    if (!finder) return res.status(404).json({ error: 'Finder não encontrado' });
+
+    const ok = await bcrypt.compare(current_password, finder.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Senha atual incorreta' });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await query('UPDATE finders SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finders/portal/photo — finder uploads own photo
+router.post('/portal/photo', requireFinder, uploadPhoto.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+    const photoUrl = `/uploads/${req.file.filename}`;
+    await query('UPDATE finders SET photo_url = $1 WHERE id = $2', [photoUrl, req.user.id]);
+    res.json({ photo_url: photoUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Campaign endpoints (require user token) ───────────────────────────────────
+
+// GET /api/finders/campaigns — list campaigns for current consultant
+router.get('/campaigns', requireUser, async (req, res) => {
+  try {
+    const isMaster = req.user.role === 'master';
+    const sql = isMaster
+      ? 'SELECT fc.*, u.name as consultant_name FROM finder_campaigns fc LEFT JOIN users u ON u.id = fc.consultant_id ORDER BY fc.month DESC'
+      : 'SELECT * FROM finder_campaigns WHERE consultant_id = $1 ORDER BY month DESC';
+    const params = isMaster ? [] : [req.user.id];
+    res.json((await query(sql, params)).rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finders/campaigns — create or update campaign for a month (upsert)
+router.post('/campaigns', requireUser, async (req, res) => {
+  try {
+    if (req.user.role === 'master') return res.status(403).json({ error: 'Somente consultores criam campanhas' });
+    const { month, kpi_type, kpi_target, prize_description, prize_value, description } = req.body;
+    if (!month || !kpi_type || !prize_description) return res.status(400).json({ error: 'Mês, KPI e premiação são obrigatórios' });
+
+    const campaign = (await query(
+      `INSERT INTO finder_campaigns (consultant_id, month, kpi_type, kpi_target, prize_description, prize_value, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (consultant_id, month) DO UPDATE SET
+         kpi_type=$3, kpi_target=$4, prize_description=$5, prize_value=$6, description=$7
+       RETURNING *`,
+      [req.user.id, month, kpi_type, kpi_target || 0, prize_description, prize_value || 0, description || null]
+    )).rows[0];
+    res.status(201).json(campaign);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finders/campaigns/:cid
+router.delete('/campaigns/:cid', requireUser, async (req, res) => {
+  try {
+    const c = (await query('SELECT * FROM finder_campaigns WHERE id = $1', [req.params.cid])).rows[0];
+    if (!c) return res.status(404).json({ error: 'Campanha não encontrada' });
+    if (c.consultant_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+    await query('DELETE FROM finder_campaigns WHERE id = $1', [req.params.cid]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

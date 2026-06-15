@@ -174,12 +174,30 @@ async function initDB() {
       password_hash TEXT NOT NULL,
       consultant_id INTEGER NOT NULL,
       active INTEGER DEFAULT 1,
+      photo_url TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
   // Migration: add finder_id to contacts
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
   await query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
+  await query(`ALTER TABLE finders ADD COLUMN IF NOT EXISTS photo_url TEXT`).catch(() => {});
+
+  // Finder campaigns (gamification)
+  await query(`
+    CREATE TABLE IF NOT EXISTS finder_campaigns (
+      id SERIAL PRIMARY KEY,
+      consultant_id INTEGER NOT NULL,
+      month TEXT NOT NULL,
+      kpi_type TEXT NOT NULL DEFAULT 'credito_producao',
+      kpi_target REAL NOT NULL DEFAULT 0,
+      prize_description TEXT NOT NULL DEFAULT '',
+      prize_value REAL DEFAULT 0,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(consultant_id, month)
+    )
+  `);
 
   await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
