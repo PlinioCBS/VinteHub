@@ -9,38 +9,41 @@ router.get('/', async (req, res) => {
   try {
     const { search, status, excludeStatus, crm_type } = req.query;
     const isMaster = req.user.role === 'master';
-    let sql = 'SELECT * FROM contacts WHERE 1=1';
+    let sql = `
+      SELECT c.*, f.name as finder_name
+      FROM contacts c
+      LEFT JOIN finders f ON c.finder_id = f.id
+      WHERE 1=1
+    `;
     const params = [];
     let idx = 1;
 
     if (search) {
-      sql += ` AND (name ILIKE $${idx} OR email ILIKE $${idx+1} OR company ILIKE $${idx+2} OR phone ILIKE $${idx+3})`;
+      sql += ` AND (c.name ILIKE $${idx} OR c.email ILIKE $${idx+1} OR c.company ILIKE $${idx+2} OR c.phone ILIKE $${idx+3})`;
       const s = `%${search}%`;
       params.push(s, s, s, s);
       idx += 4;
     }
     if (status) {
-      sql += ` AND status = $${idx++}`;
+      sql += ` AND c.status = $${idx++}`;
       params.push(status);
     } else {
-      // Sempre exclui 'cliente' por padrão (a menos que status='cliente' seja explicitamente pedido)
-      sql += ` AND status != $${idx++}`;
+      sql += ` AND c.status != $${idx++}`;
       params.push('cliente');
-      // Se veio excludeStatus adicional (ex: 'inativo'), exclui também
       if (excludeStatus && excludeStatus !== 'cliente') {
-        sql += ` AND status != $${idx++}`;
+        sql += ` AND c.status != $${idx++}`;
         params.push(excludeStatus);
       }
     }
     if (crm_type) {
-      sql += ` AND crm_type = $${idx++}`;
+      sql += ` AND c.crm_type = $${idx++}`;
       params.push(crm_type);
     }
     if (!isMaster) {
-      sql += ` AND user_id = $${idx++}`;
+      sql += ` AND c.user_id = $${idx++}`;
       params.push(req.user.id);
     }
-    sql += ' ORDER BY created_at DESC';
+    sql += ' ORDER BY c.created_at DESC';
 
     const contacts = (await query(sql, params)).rows;
     res.json(contacts);

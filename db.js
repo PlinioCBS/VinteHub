@@ -162,6 +162,25 @@ async function initDB() {
   // Migration: add aum_usd to contacts (USD-denominated portfolio for Investimento CRM)
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS aum_usd REAL DEFAULT 0`).catch(() => {});
 
+  // Finders (parceiros que indicam leads para consultores)
+  await query(`
+    CREATE TABLE IF NOT EXISTS finders (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT,
+      company TEXT,
+      notes TEXT,
+      password_hash TEXT NOT NULL,
+      consultant_id INTEGER NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Migration: add finder_id to contacts
+  await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
+  await query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
+
   await query(`
     CREATE TABLE IF NOT EXISTS user_crm_commissions (
       id SERIAL PRIMARY KEY,

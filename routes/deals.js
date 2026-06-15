@@ -18,9 +18,10 @@ router.get('/', async (req, res) => {
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
     let sql = `
-      SELECT d.*, c.name as contact_name, c.status as contact_status
+      SELECT d.*, c.name as contact_name, c.status as contact_status, f.name as finder_name
       FROM deals d
       LEFT JOIN contacts c ON d.contact_id = c.id
+      LEFT JOIN finders f ON d.finder_id = f.id
       WHERE 1=1
     `;
     const params = [];
@@ -46,9 +47,10 @@ router.get('/by-stage', async (req, res) => {
 
     for (const stage of stages) {
       let sql = `
-        SELECT d.*, c.name as contact_name, c.status as contact_status
+        SELECT d.*, c.name as contact_name, c.status as contact_status, f.name as finder_name
         FROM deals d
         LEFT JOIN contacts c ON d.contact_id = c.id
+        LEFT JOIN finders f ON d.finder_id = f.id
         WHERE d.stage = $1
       `;
       const params = [stage];

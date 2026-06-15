@@ -17,6 +17,7 @@ const financeiroRouter = require('./routes/financeiro');
 const productsRouter = require('./routes/products');
 const productCatalogRouter = require('./routes/productCatalog');
 const marketDataRouter = require('./routes/marketData');
+const findersRouter = require('./routes/finders');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,10 +56,14 @@ app.use('/api/auth', (req, res, next) => {
   authMiddleware(req, res, next);
 }, authRouter);
 
+// Finder login — public (no token needed)
+app.post('/api/finders/login', (req, res, next) => next(), findersRouter);
+
 // Apply auth middleware to all other /api/* routes
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth')) return next();
   if (req.path.startsWith('/market-data')) return next(); // public — market data has no PII
+  if (req.path === '/finders/login') return next(); // finder login is public
   authMiddleware(req, res, next);
 });
 
@@ -74,6 +79,7 @@ app.use('/api/financeiro', financeiroRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/product-catalog', productCatalogRouter);
 app.use('/api/market-data', marketDataRouter);
+app.use('/api/finders', findersRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
