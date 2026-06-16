@@ -8,9 +8,12 @@ const fs = require('fs');
 const { query } = require('../db');
 
 const uploadDir = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
 const photoStorage = multer.diskStorage({
-  destination: uploadDir,
+  destination: (req, file, cb) => {
+    try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
+    cb(null, uploadDir);
+  },
   filename: (req, file, cb) => cb(null, `finder-${req.user.id}-${Date.now()}${path.extname(file.originalname)}`),
 });
 const uploadPhoto = multer({ storage: photoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
