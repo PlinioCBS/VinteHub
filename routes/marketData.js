@@ -131,22 +131,30 @@ async function fredFetch() {
 }
 
 // GET /api/market-data/indices
+// Yahoo Finance is the primary source for all indices (proven reliable from Render's network).
+// HG Brasil is kept only as a fallback for IBOVESPA/IFIX, since some hosts/IPs get throttled by it.
 router.get('/indices', async (req, res) => {
   const cached = fromCache('indices');
   if (cached) return res.json(cached);
 
-  const [hg, sp500Res, nyseRes] = await Promise.allSettled([
-    hgFetch(),
+  const [ibovRes, ifixRes, nasdaqRes, dowRes, sp500Res, nyseRes, hg] = await Promise.allSettled([
+    yhFetch('^BVSP'),
+    yhFetch('XFIX11.SA'), // ETF that tracks IFIX (Yahoo has no native IFIX index ticker)
+    yhFetch('^IXIC'),
+    yhFetch('^DJI'),
     yhFetch('^GSPC'),
     yhFetch('^NYA'),
+    hgFetch(),
   ]);
 
   const hgData = hg.status === 'fulfilled' ? hg.value : null;
+  const pick = (settled, hgField) => (settled.status === 'fulfilled' && settled.value) || hgData?.[hgField] || null;
+
   const data = {
-    ibov:     hgData?.ibov     || null,
-    ifix:     hgData?.ifix     || null,
-    nasdaq:   hgData?.nasdaq   || null,
-    dowjones: hgData?.dowjones || null,
+    ibov:     pick(ibovRes,   'ibov'),
+    ifix:     pick(ifixRes,   'ifix'),
+    nasdaq:   pick(nasdaqRes, 'nasdaq'),
+    dowjones: pick(dowRes,    'dowjones'),
     sp500:    sp500Res.status === 'fulfilled' ? sp500Res.value : null,
     nyse:     nyseRes.status  === 'fulfilled' ? nyseRes.value  : null,
   };
