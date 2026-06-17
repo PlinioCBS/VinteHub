@@ -126,8 +126,18 @@ router.put('/:id', async (req, res) => {
     const stage = b.stage ?? existing.stage;
     const prob = b.probability !== undefined ? b.probability : (STAGE_PROB[stage] || existing.probability);
 
+    // Marca o momento da conversão (usado para ranquear finders por período).
+    // Define closed_at ao entrar em etapa ganha; limpa se voltar atrás.
+    const WON_STAGES = ['fechado_ganho', 'cliente_ativo'];
+    let closedAt = existing.closed_at;
+    if (WON_STAGES.includes(stage)) {
+      if (!existing.closed_at) closedAt = new Date();
+    } else {
+      closedAt = null;
+    }
+
     await query(`
-      UPDATE deals SET title=$1, contact_id=$2, value=$3, stage=$4, probability=$5, expected_close=$6, notes=$7, crm_type=$8
+      UPDATE deals SET title=$1, contact_id=$2, value=$3, stage=$4, probability=$5, expected_close=$6, notes=$7, crm_type=$8, closed_at=$10
       WHERE id=$9
     `, [
       b.title          ?? existing.title,
@@ -138,7 +148,8 @@ router.put('/:id', async (req, res) => {
       b.expected_close ?? existing.expected_close,
       b.notes          ?? existing.notes,
       b.crm_type       ?? existing.crm_type,
-      req.params.id
+      req.params.id,
+      closedAt
     ]);
 
     if (existing.stage !== stage) {

@@ -161,6 +161,13 @@ async function initDB() {
   await query(`ALTER TABLE client_products ADD COLUMN IF NOT EXISTS taxa_percent REAL DEFAULT NULL`).catch(() => {});
   // Migration: add aum_usd to contacts (USD-denominated portfolio for Investimento CRM)
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS aum_usd REAL DEFAULT 0`).catch(() => {});
+  // Migration: add cpf + tax_regime to contacts (Clientes Ativos)
+  await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS cpf TEXT`).catch(() => {});
+  await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_regime TEXT`).catch(() => {});
+  // Migration: add closed_at to deals (timestamp of conversion — used for finder rank by period)
+  await query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`).catch(() => {});
+  // Migration: add state (UF) to users — localização do consultor (mapa da equipe)
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state TEXT`).catch(() => {});
 
   // Finders (parceiros que indicam leads para consultores)
   await query(`
@@ -305,6 +312,22 @@ async function initDB() {
         `INSERT INTO user_crm_commissions (user_id, crm_type, commission_percent) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
         [userRow.id, crm, pct]
       );
+    }
+  }
+
+  // Seed consultor Alefe (Distrito Federal)
+  {
+    const alefeEmail = 'alefe@vintebrava.com';
+    const alefeRow = (await query('SELECT id, state FROM users WHERE email = $1', [alefeEmail])).rows[0];
+    if (!alefeRow) {
+      const hash = await bcrypt.hash('alefe123', 10);
+      await query(
+        `INSERT INTO users (name, email, password_hash, role, crm_access, active, state)
+         VALUES ($1, $2, $3, 'employee', 'all', 1, 'DF')`,
+        ['Alefe', alefeEmail, hash]
+      );
+    } else if (!alefeRow.state) {
+      await query('UPDATE users SET state = $1 WHERE id = $2', ['DF', alefeRow.id]);
     }
   }
 

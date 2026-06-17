@@ -80,18 +80,20 @@ router.post('/', async (req, res) => {
       aum = 0, investor_profile, portfolio, liquidity_horizon,
       bank_name, bank_agency, bank_account,
       address, profession, monthly_income, marital_status, birth_date, age,
-      crm_type = 'investimento'
+      crm_type = 'investimento', cpf, tax_regime
     } = req.body;
 
     const result = await query(`
       INSERT INTO contacts (name, email, phone, company, status, notes, aum,
         investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
-        address, profession, monthly_income, marital_status, birth_date, age, crm_type, user_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        address, profession, monthly_income, marital_status, birth_date, age, crm_type, user_id,
+        cpf, tax_regime)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
       RETURNING id
     `, [name, email, phone, company, status, notes, aum,
       investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
-      address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id]);
+      address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id,
+      cpf || null, tax_regime || null]);
 
     const contactId = result.rows[0].id;
 
@@ -146,7 +148,7 @@ router.put('/:id', async (req, res) => {
         investor_profile=$8, portfolio=$9, liquidity_horizon=$10,
         bank_name=$11, bank_agency=$12, bank_account=$13,
         address=$14, profession=$15, monthly_income=$16, marital_status=$17, birth_date=$18, age=$19,
-        crm_type=$20
+        crm_type=$20, cpf=$22, tax_regime=$23
       WHERE id=$21
     `, [
       b.name               ?? existing.name,
@@ -169,7 +171,9 @@ router.put('/:id', async (req, res) => {
       b.birth_date         ?? existing.birth_date,
       b.age                ?? existing.age,
       b.crm_type           ?? existing.crm_type,
-      req.params.id
+      req.params.id,
+      b.cpf                ?? existing.cpf,
+      b.tax_regime         ?? existing.tax_regime
     ]);
 
     const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];
@@ -235,7 +239,11 @@ router.post('/:id/advance', async (req, res) => {
       for (const deal of activeDeals) {
         const dealIdx = DEAL_STAGES.indexOf(deal.stage);
         const nextDealStage = dealIdx < DEAL_STAGES.length - 1 ? DEAL_STAGES[dealIdx + 1] : deal.stage;
-        await query('UPDATE deals SET stage = $1, probability = $2 WHERE id = $3', [nextDealStage, getProbability(nextDealStage), deal.id]);
+        const wonNow = ['fechado_ganho', 'cliente_ativo'].includes(nextDealStage);
+        await query(
+          `UPDATE deals SET stage = $1, probability = $2, closed_at = ${wonNow ? 'COALESCE(closed_at, NOW())' : 'closed_at'} WHERE id = $3`,
+          [nextDealStage, getProbability(nextDealStage), deal.id]
+        );
 
         await query(`
           INSERT INTO activities (type, description, contact_id, deal_id, crm_type, user_id)

@@ -44,7 +44,7 @@ async function saveCRMCommissions(userId, crm_commissions) {
 // GET / - list all users
 router.get('/', requireMaster, async (req, res) => {
   try {
-    const users = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users ORDER BY created_at DESC')).rows;
+    const users = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary, state FROM users ORDER BY created_at DESC')).rows;
 
     const result = await Promise.all(users.map(async (u) => {
       const clientsByCRM = (await query(`
@@ -90,7 +90,7 @@ router.get('/', requireMaster, async (req, res) => {
 // POST / - create user
 router.post('/', requireMaster, async (req, res) => {
   try {
-    const { name, email, password, role = 'employee', crm_access = 'all', commission_percent = 0, active = 1 } = req.body;
+    const { name, email, password, role = 'employee', crm_access = 'all', commission_percent = 0, active = 1, state = null } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
@@ -100,14 +100,14 @@ router.post('/', requireMaster, async (req, res) => {
     const crmAccessStr = Array.isArray(crm_access) ? JSON.stringify(crm_access) : crm_access;
 
     const result = await query(`
-      INSERT INTO users (name, email, password_hash, role, crm_access, commission_percent, active)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
-    `, [name, email.trim().toLowerCase(), hash, role, crmAccessStr, commission_percent, active ? 1 : 0]);
+      INSERT INTO users (name, email, password_hash, role, crm_access, commission_percent, active, state)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
+    `, [name, email.trim().toLowerCase(), hash, role, crmAccessStr, commission_percent, active ? 1 : 0, state || null]);
 
     const newId = result.rows[0].id;
     if (req.body.crm_commissions) await saveCRMCommissions(newId, req.body.crm_commissions);
 
-    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = $1', [newId])).rows[0];
+    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary, state FROM users WHERE id = $1', [newId])).rows[0];
     res.status(201).json({ ...user, crm_commissions: await getCRMCommissions(newId) });
   } catch (err) {
     if (err.message.includes('unique') || err.message.includes('UNIQUE') || err.code === '23505') {
@@ -120,7 +120,7 @@ router.post('/', requireMaster, async (req, res) => {
 // PUT /:id - edit user
 router.put('/:id', requireMaster, async (req, res) => {
   try {
-    const { name, email, password, role, crm_access, commission_percent, active } = req.body;
+    const { name, email, password, role, crm_access, commission_percent, active, state } = req.body;
 
     const existing = (await query('SELECT * FROM users WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -129,7 +129,7 @@ router.put('/:id', requireMaster, async (req, res) => {
     const crmAccessStr = Array.isArray(crm_access) ? JSON.stringify(crm_access) : (crm_access || existing.crm_access);
 
     await query(`
-      UPDATE users SET name=$1, email=$2, password_hash=$3, role=$4, crm_access=$5, commission_percent=$6, active=$7
+      UPDATE users SET name=$1, email=$2, password_hash=$3, role=$4, crm_access=$5, commission_percent=$6, active=$7, state=$9
       WHERE id=$8
     `, [
       name || existing.name,
@@ -139,12 +139,13 @@ router.put('/:id', requireMaster, async (req, res) => {
       crmAccessStr,
       commission_percent !== undefined ? commission_percent : existing.commission_percent,
       active !== undefined ? (active ? 1 : 0) : existing.active,
-      req.params.id
+      req.params.id,
+      state !== undefined ? (state || null) : existing.state
     ]);
 
     if (req.body.crm_commissions) await saveCRMCommissions(req.params.id, req.body.crm_commissions);
 
-    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary FROM users WHERE id = $1', [req.params.id])).rows[0];
+    const user = (await query('SELECT id, name, email, role, crm_access, commission_percent, active, created_at, photo_url, base_salary, state FROM users WHERE id = $1', [req.params.id])).rows[0];
     res.json({ ...user, crm_commissions: await getCRMCommissions(req.params.id) });
   } catch (err) {
     res.status(500).json({ error: err.message });

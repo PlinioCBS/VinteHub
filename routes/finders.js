@@ -85,7 +85,7 @@ router.get('/portal/leads', requireFinder, async (req, res) => {
   try {
     const contacts = (await query(
       `SELECT c.id, c.name, c.email, c.phone, c.company, c.status, c.crm_type, c.created_at,
-              d.stage, d.id as deal_id, d.title as deal_title
+              d.stage, d.id as deal_id, d.title as deal_title, d.value as deal_value
        FROM contacts c
        LEFT JOIN deals d ON d.contact_id = c.id AND d.user_id = c.user_id
        WHERE c.finder_id = $1
@@ -149,7 +149,7 @@ router.get('/portal/rank', requireFinder, async (req, res) => {
       : `COUNT(DISTINCT c.id)::REAL`;
 
     const joinClause = campaign.kpi_type === 'credito_producao'
-      ? `LEFT JOIN deals d ON d.finder_id = f.id AND d.stage IN ('fechado_ganho','cliente_ativo') AND TO_CHAR(d.created_at,'YYYY-MM') = $1`
+      ? `LEFT JOIN deals d ON d.finder_id = f.id AND d.stage IN ('fechado_ganho','cliente_ativo') AND TO_CHAR(COALESCE(d.closed_at, d.created_at),'YYYY-MM') = $1`
       : `LEFT JOIN contacts c ON c.finder_id = f.id AND TO_CHAR(c.created_at,'YYYY-MM') = $1`;
 
     const sql = `
@@ -158,7 +158,7 @@ router.get('/portal/rank', requireFinder, async (req, res) => {
       ${joinClause}
       WHERE f.consultant_id = $2 AND f.active = 1
       GROUP BY f.id, f.name, f.photo_url
-      ORDER BY score DESC
+      ORDER BY score DESC, f.name ASC
     `;
     const rows = (await query(sql, [currentMonth, req.user.consultant_id])).rows;
     const rank = rows.map((r, i) => ({ ...r, score: parseFloat(r.score) || 0, position: i + 1 }));
