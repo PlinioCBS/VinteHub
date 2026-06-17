@@ -164,6 +164,8 @@ async function initDB() {
   // Migration: add cpf + tax_regime to contacts (Clientes Ativos)
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS cpf TEXT`).catch(() => {});
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_regime TEXT`).catch(() => {});
+  // Migration: add state (UF) to contacts — localização do cliente (mapa de clientes ativos)
+  await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS state TEXT`).catch(() => {});
   // Migration: add closed_at to deals (timestamp of conversion — used for finder rank by period)
   await query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`).catch(() => {});
   // Migration: add state (UF) to users — localização do consultor (mapa da equipe)

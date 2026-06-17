@@ -80,20 +80,20 @@ router.post('/', async (req, res) => {
       aum = 0, investor_profile, portfolio, liquidity_horizon,
       bank_name, bank_agency, bank_account,
       address, profession, monthly_income, marital_status, birth_date, age,
-      crm_type = 'investimento', cpf, tax_regime
+      crm_type = 'investimento', cpf, tax_regime, state
     } = req.body;
 
     const result = await query(`
       INSERT INTO contacts (name, email, phone, company, status, notes, aum,
         investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
         address, profession, monthly_income, marital_status, birth_date, age, crm_type, user_id,
-        cpf, tax_regime)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        cpf, tax_regime, state)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING id
     `, [name, email, phone, company, status, notes, aum,
       investor_profile, portfolio, liquidity_horizon, bank_name, bank_agency, bank_account,
       address, profession, monthly_income, marital_status, birth_date, age, crm_type, req.user.id,
-      cpf || null, tax_regime || null]);
+      cpf || null, tax_regime || null, state || null]);
 
     const contactId = result.rows[0].id;
 
@@ -148,7 +148,7 @@ router.put('/:id', async (req, res) => {
         investor_profile=$8, portfolio=$9, liquidity_horizon=$10,
         bank_name=$11, bank_agency=$12, bank_account=$13,
         address=$14, profession=$15, monthly_income=$16, marital_status=$17, birth_date=$18, age=$19,
-        crm_type=$20, cpf=$22, tax_regime=$23
+        crm_type=$20, cpf=$22, tax_regime=$23, state=$24
       WHERE id=$21
     `, [
       b.name               ?? existing.name,
@@ -173,7 +173,8 @@ router.put('/:id', async (req, res) => {
       b.crm_type           ?? existing.crm_type,
       req.params.id,
       b.cpf                ?? existing.cpf,
-      b.tax_regime         ?? existing.tax_regime
+      b.tax_regime         ?? existing.tax_regime,
+      b.state              ?? existing.state
     ]);
 
     const contact = (await query('SELECT * FROM contacts WHERE id = $1', [req.params.id])).rows[0];

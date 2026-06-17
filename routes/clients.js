@@ -111,12 +111,15 @@ router.get('/', async (req, res) => {
     const { crm_type } = req.query;
     const isMaster = req.user.role === 'master';
 
-    let sql = "SELECT * FROM contacts WHERE status = 'cliente'";
+    let sql = `SELECT c.*, u.name as consultant_name
+               FROM contacts c
+               LEFT JOIN users u ON u.id = c.user_id
+               WHERE c.status = 'cliente'`;
     const params = [];
     let idx = 1;
-    if (crm_type) { sql += ` AND crm_type = $${idx++}`; params.push(crm_type); }
-    if (!isMaster) { sql += ` AND user_id = $${idx++}`; params.push(req.user.id); }
-    sql += ' ORDER BY name';
+    if (crm_type) { sql += ` AND c.crm_type = $${idx++}`; params.push(crm_type); }
+    if (!isMaster) { sql += ` AND c.user_id = $${idx++}`; params.push(req.user.id); }
+    sql += ' ORDER BY c.name';
 
     const clients = (await query(sql, params)).rows;
 
