@@ -260,7 +260,7 @@ router.get('/', requireUser, async (req, res) => {
   try {
     const isMaster = req.user.role === 'master';
     let sql = `
-      SELECT f.id, f.name, f.email, f.phone, f.company, f.notes, f.active, f.created_at, f.consultant_id,
+      SELECT f.id, f.name, f.email, f.phone, f.company, f.notes, f.active, f.created_at, f.consultant_id, f.state, f.photo_url,
              u.name as consultant_name,
              COUNT(c.id) as lead_count
       FROM finders f
@@ -302,7 +302,7 @@ router.get('/:id', requireUser, async (req, res) => {
 router.post('/', requireUser, async (req, res) => {
   try {
     if (req.user.role === 'master') return res.status(403).json({ error: 'Masters não criam finders diretamente' });
-    const { name, email, phone, company, notes, password } = req.body;
+    const { name, email, phone, company, notes, password, state } = req.body;
     if (!name?.trim() || !email?.trim() || !password) {
       return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
     }
@@ -310,9 +310,9 @@ router.post('/', requireUser, async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const finder = (await query(
-      `INSERT INTO finders (name, email, phone, company, notes, password_hash, consultant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, phone, company, notes, active, created_at, consultant_id`,
-      [name.trim(), email.trim().toLowerCase(), phone || null, company || null, notes || null, hash, req.user.id]
+      `INSERT INTO finders (name, email, phone, company, notes, password_hash, consultant_id, state)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, email, phone, company, notes, active, created_at, consultant_id, state`,
+      [name.trim(), email.trim().toLowerCase(), phone || null, company || null, notes || null, hash, req.user.id, state || null]
     )).rows[0];
     res.status(201).json(finder);
   } catch (err) {
@@ -331,7 +331,7 @@ router.patch('/:id', requireUser, async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Finder não encontrado' });
     if (!isMaster && existing.consultant_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
 
-    const { name, email, phone, company, notes, active } = req.body;
+    const { name, email, phone, company, notes, active, state } = req.body;
     const finder = (await query(
       `UPDATE finders SET
         name    = COALESCE($1, name),
@@ -339,11 +339,12 @@ router.patch('/:id', requireUser, async (req, res) => {
         phone   = COALESCE($3, phone),
         company = COALESCE($4, company),
         notes   = COALESCE($5, notes),
-        active  = COALESCE($6, active)
+        active  = COALESCE($6, active),
+        state   = COALESCE($8, state)
        WHERE id = $7
-       RETURNING id, name, email, phone, company, notes, active, created_at, consultant_id`,
+       RETURNING id, name, email, phone, company, notes, active, created_at, consultant_id, state`,
       [name || null, email?.toLowerCase() || null, phone ?? null, company ?? null,
-       notes ?? null, active ?? null, req.params.id]
+       notes ?? null, active ?? null, req.params.id, state ?? null]
     )).rows[0];
     res.json(finder);
   } catch (err) {

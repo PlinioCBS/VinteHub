@@ -189,6 +189,7 @@ async function initDB() {
   await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
   await query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS finder_id INTEGER`).catch(() => {});
   await query(`ALTER TABLE finders ADD COLUMN IF NOT EXISTS photo_url TEXT`).catch(() => {});
+  await query(`ALTER TABLE finders ADD COLUMN IF NOT EXISTS state TEXT`).catch(() => {});
 
   // Finder campaigns (gamification)
   await query(`
