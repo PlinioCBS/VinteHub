@@ -22,8 +22,8 @@ export default function FinderLogin() {
     setLoading(true);
     try {
       const res = await api.finderLogin(email.trim(), password);
-      if (res.error) { setError(res.error); return; }
-      localStorage.setItem('finder_token', res.token);
+      if (!res.success) { setError(res.error || 'Credenciais inválidas'); return; }
+      localStorage.setItem('finder_token', res.finder._id);
       localStorage.setItem('finder_data', JSON.stringify(res.finder));
       navigate('/finder-portal', { replace: true });
     } catch (err) {

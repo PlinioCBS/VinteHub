@@ -155,6 +155,10 @@ export function useAPI() {
     createFinderCampaign: (data) =>
       client.mutation(convexAPI.finders.upsertCampaign, { consultantId: userId, ...data }),
 
+    // ─── Finder auth ─────────────────────────────────────────────
+    finderLogin: (email, password) =>
+      client.mutation(convexAPI.auth.finderLogin, { email, password }),
+
     // ─── Finder portal ───────────────────────────────────────────
     getFinderMe: () => Promise.resolve(user),
     getFinderLeads: () =>
