@@ -69,11 +69,11 @@ export function useAPI() {
     getDashboardStats: (params = {}) =>
       client.query(convexAPI.dashboard.stats, { ...userArgs(), ...params }),
     getGeneralDashboard: () =>
-      client.query(convexAPI.dashboard.generalStats, {}),
+      client.query(convexAPI.dashboard.generalDashboard, {}),
     getCreditSummary: () =>
       client.query(convexAPI.dashboard.stats, { ...userArgs(), crmType: 'credito' }),
-    getEmployeeRanking: () =>
-      client.query(convexAPI.dashboard.generalStats, {}),
+    getEmployeeRanking: (tab = 'all') =>
+      client.query(convexAPI.dashboard.employeeRanking, { crmType: tab }),
 
     // ─── Clients ────────────────────────────────────────────────
     getClients: (params = {}) =>

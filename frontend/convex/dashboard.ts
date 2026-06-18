@@ -96,3 +96,115 @@ export const generalStats = query({
     return { employees: byEmployee, totalAUM, totalClients: clients.length };
   },
 });
+
+export const generalDashboard = query({
+  args: {},
+  handler: async (ctx) => {
+    const contacts = await ctx.db.query("contacts").collect();
+    const deals = await ctx.db.query("deals").collect();
+    const clientProducts = await ctx.db.query("clientProducts").collect();
+
+    const clients = contacts.filter(c => c.status === "cliente");
+    const totalClients = clients.length;
+    const grandTotalAUM = clients
+      .filter(c => c.crmType === "investimento" || !c.crmType)
+      .reduce((s, c) => s + (c.aum ?? 0), 0);
+
+    const CRM_TYPES = ["investimento", "credito", "cambio", "seguro"];
+    const perCRM = CRM_TYPES.map(crmType => {
+      const crmClients = clients.filter(c => c.crmType === crmType);
+      let totalAnnual = 0;
+      if (crmType === "investimento") {
+        totalAnnual = crmClients.reduce((s, c) => s + (c.aum ?? 0), 0);
+      } else if (crmType === "credito") {
+        totalAnnual = clientProducts
+          .filter(p => p.crmType === "credito")
+          .reduce((s, p) => s + (p.creditValue ?? 0), 0);
+      } else {
+        totalAnnual = deals
+          .filter(d => d.crmType === crmType && d.stage === "fechado_ganho")
+          .reduce((s, d) => s + (d.value ?? 0), 0);
+      }
+      return { crm_type: crmType, totalAnnual, fee: 0, label: null, color: null };
+    });
+
+    const creditProducts = clientProducts.filter(p => p.crmType === "credito");
+    const porto_total = creditProducts
+      .filter(p => p.productType === "consorcio_porto")
+      .reduce((s, p) => s + (p.creditValue ?? 0), 0);
+    const bancorbras_total = creditProducts
+      .filter(p => p.productType === "consorcio_bancorbras")
+      .reduce((s, p) => s + (p.creditValue ?? 0), 0);
+
+    return {
+      perCRM,
+      grandTotalAUM,
+      totalAUM: grandTotalAUM,
+      totalClients,
+      credito_summary: { porto_total, bancorbras_total, product_entries: [] },
+    };
+  },
+});
+
+export const employeeRanking = query({
+  args: { crmType: v.optional(v.string()) },
+  handler: async (ctx, { crmType }) => {
+    const users = await ctx.db.query("users").collect();
+    const contacts = await ctx.db.query("contacts").collect();
+    const deals = await ctx.db.query("deals").collect();
+    const clientProducts = await ctx.db.query("clientProducts").collect();
+
+    const employees = users.filter(u => u.active && u.role !== "master");
+    const isAll = !crmType || crmType === "all";
+
+    const ranked = employees.map(u => {
+      const myContacts = contacts.filter(c => c.userId === u._id);
+      const myDeals = deals.filter(d => d.userId === u._id);
+
+      const myClients = myContacts.filter(c => {
+        if (c.status !== "cliente") return false;
+        return isAll ? true : c.crmType === crmType;
+      });
+
+      const myOpenDeals = myDeals.filter(d => {
+        const open = !["fechado_ganho", "fechado_perdido"].includes(d.stage ?? "");
+        return isAll ? open : open && d.crmType === crmType;
+      });
+
+      const total_aum = myContacts
+        .filter(c => c.status === "cliente" && (isAll ? c.crmType === "investimento" : c.crmType === crmType))
+        .reduce((s, c) => s + (c.aum ?? 0), 0);
+
+      const contactIds = new Set(myContacts.map(c => c._id));
+      const myProducts = clientProducts.filter(p => contactIds.has(p.contactId) && p.crmType === "credito");
+      const consorcio_porto = myProducts
+        .filter(p => p.productType === "consorcio_porto")
+        .reduce((s, p) => s + (p.creditValue ?? 0), 0);
+      const consorcio_bancorbras = myProducts
+        .filter(p => p.productType === "consorcio_bancorbras")
+        .reduce((s, p) => s + (p.creditValue ?? 0), 0);
+      const credit_volume = consorcio_porto + consorcio_bancorbras;
+
+      return {
+        id: u._id,
+        name: u.name,
+        photo_url: u.photoUrl ?? null,
+        total_aum,
+        active_clients: myClients.length,
+        open_deals: myOpenDeals.length,
+        credit_volume,
+        credit_by_type: { consorcio_porto, consorcio_bancorbras },
+      };
+    });
+
+    if (crmType === "credito") {
+      ranked.sort((a, b) => b.credit_volume - a.credit_volume);
+    } else if (crmType === "investimento") {
+      ranked.sort((a, b) => b.total_aum - a.total_aum);
+    } else {
+      ranked.sort((a, b) => (b.total_aum + b.credit_volume) - (a.total_aum + a.credit_volume));
+    }
+
+    return ranked;
+  },
+});
