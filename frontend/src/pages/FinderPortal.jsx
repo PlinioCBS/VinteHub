@@ -1,44 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConvex } from 'convex/react';
+import { api as convexAPI } from '../../convex/_generated/api';
 import { maskPhone } from '../utils/masks.js';
-
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
-
-async function finderFetch(path, options = {}) {
-  const token = localStorage.getItem('finder_token');
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  if (res.status === 401) {
-    localStorage.removeItem('finder_token');
-    localStorage.removeItem('finder_data');
-    window.location.href = '/finder-login';
-    throw new Error('Sessão expirada');
-  }
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Erro ${res.status}`);
-  }
-  return res.json();
-}
-
-async function uploadFinderPhoto(file) {
-  const token = localStorage.getItem('finder_token');
-  const form = new FormData();
-  form.append('photo', file);
-  const res = await fetch(`${API_BASE}/finders/portal/photo`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Erro ao enviar foto'); }
-  return res.json();
-}
 
 const STAGE_LABELS = {
   prospecting: 'Prospecção', qualificacao: 'Qualificação', proposta: 'Proposta',
@@ -123,10 +87,10 @@ function Avatar({ name, photoUrl, size = 10 }) {
 function RankSection({ rankData, myId }) {
   if (!rankData?.campaign) return null;
   const { campaign, rank, myPosition, myScore } = rankData;
-  const fmtScore = (s) => campaign.kpi_type === 'credito_producao'
+  const fmtScore = (s) => campaign.kpiType === 'credito_producao'
     ? `R$ ${Number(s).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`
     : `${s} leads`;
-  const pct = campaign.kpi_target > 0 ? Math.min(100, (myScore / campaign.kpi_target) * 100) : 0;
+  const pct = campaign.kpiTarget > 0 ? Math.min(100, (myScore / campaign.kpiTarget) * 100) : 0;
   const medalEmoji = ['🥇','🥈','🥉'];
 
   return (
@@ -135,10 +99,10 @@ function RankSection({ rankData, myId }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-sans text-xs font-bold uppercase tracking-wider text-white opacity-70 mb-1">🏆 Campanha do Mês</p>
-            <p className="font-serif font-bold text-2xl text-white">{campaign.prize_description}</p>
-            {campaign.prize_value > 0 && (
+            <p className="font-serif font-bold text-2xl text-white">{campaign.prizeDescription}</p>
+            {campaign.prizeValue > 0 && (
               <p className="font-sans text-sm text-white opacity-80 mt-0.5">
-                Valor: R$ {Number(campaign.prize_value).toLocaleString('pt-BR')}
+                Valor: R$ {Number(campaign.prizeValue).toLocaleString('pt-BR')}
               </p>
             )}
             {campaign.description && (
@@ -155,14 +119,14 @@ function RankSection({ rankData, myId }) {
             </span>
             <span className="font-sans text-xs font-bold text-white">{fmtScore(myScore)}</span>
           </div>
-          {campaign.kpi_target > 0 && (
+          {campaign.kpiTarget > 0 && (
             <>
               <div className="w-full bg-white bg-opacity-20 rounded-full h-2">
                 <div className="h-2 rounded-full transition-all duration-700"
                   style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? '#fbbf24' : '#86efac' }} />
               </div>
               <p className="font-sans text-xs text-white opacity-60 mt-1">
-                {pct.toFixed(0)}% da meta ({fmtScore(campaign.kpi_target)})
+                {pct.toFixed(0)}% da meta ({fmtScore(campaign.kpiTarget)})
               </p>
             </>
           )}
@@ -174,15 +138,15 @@ function RankSection({ rankData, myId }) {
           <p className="font-sans text-xs font-bold uppercase tracking-wider text-white opacity-50 mb-2">Ranking</p>
           <div className="space-y-1.5">
             {rank.slice(0, 5).map((r, i) => {
-              const isMe = r.id === myId;
+              const isMe = r.finder._id === myId;
               return (
-                <div key={r.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-all"
+                <div key={r.finder._id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-all"
                   style={{ backgroundColor: isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)' }}>
                   <span className="text-lg w-6 text-center flex-shrink-0">
                     {i < 3 ? medalEmoji[i] : <span className="font-sans text-sm font-bold text-white opacity-50">{i+1}</span>}
                   </span>
-                  <Avatar name={r.name} photoUrl={r.photo_url} size={7} />
-                  <p className="font-sans text-sm font-semibold text-white flex-1 truncate">{r.name}</p>
+                  <Avatar name={r.finder.name} photoUrl={r.finder.photoUrl} size={7} />
+                  <p className="font-sans text-sm font-semibold text-white flex-1 truncate">{r.finder.name}</p>
                   <span className="font-sans text-xs font-bold text-white opacity-80 flex-shrink-0">{fmtScore(r.score)}</span>
                 </div>
               );
@@ -213,6 +177,8 @@ function SunIcon() {
 
 export default function FinderPortal() {
   const navigate = useNavigate();
+  const client = useConvex();
+  const [finderId, setFinderId] = useState(null);
   const [finderData, setFinderData] = useState(null);
   const [leads, setLeads] = useState([]);
   const [rankData, setRankData] = useState(null);
@@ -229,9 +195,6 @@ export default function FinderPortal() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
   const [savingPw, setSavingPw] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const photoRef = useRef();
-
   const t = dark ? DARK : LIGHT;
 
   function toggleDark() {
@@ -245,24 +208,41 @@ export default function FinderPortal() {
   useEffect(() => {
     const token = localStorage.getItem('finder_token');
     if (!token) { navigate('/finder-login', { replace: true }); return; }
-    try { setFinderData(JSON.parse(localStorage.getItem('finder_data'))); } catch {}
-    loadData();
+    try {
+      const stored = JSON.parse(localStorage.getItem('finder_data'));
+      setFinderData(stored);
+      setFinderId(stored?._id ?? token);
+    } catch {}
+    loadData(token);
   }, []);
 
-  async function loadData() {
+  async function loadData(fid) {
+    const id = fid ?? finderId;
+    if (!id) return;
     setLoading(true);
     try {
-      const [me, leadsData, rank] = await Promise.all([
-        finderFetch('/finders/portal/me'),
-        finderFetch('/finders/portal/leads'),
-        finderFetch('/finders/portal/rank').catch(() => null),
+      const [me, leadsData] = await Promise.all([
+        client.query(convexAPI.finders.get, { id }),
+        client.query(convexAPI.finders.portalLeads, { finderId: id }),
       ]);
       setFinderData(me);
       localStorage.setItem('finder_data', JSON.stringify(me));
-      setLeads(leadsData);
-      setRankData(rank);
+      setLeads(leadsData ?? []);
+
+      if (me?.consultantId) {
+        const month = new Date().toISOString().slice(0, 7);
+        const [campaign, rankList] = await Promise.all([
+          client.query(convexAPI.finders.getCampaign, { consultantId: me.consultantId, month }),
+          client.query(convexAPI.finders.rank, { consultantId: me.consultantId, month }),
+        ]);
+        if (campaign) {
+          const myEntry = rankList.find(r => r.finder._id === id);
+          const myPosition = rankList.findIndex(r => r.finder._id === id) + 1 || null;
+          setRankData({ campaign, rank: rankList, myPosition: myPosition || null, myScore: myEntry?.score ?? 0 });
+        }
+      }
     } catch (e) {
-      if (e?.message === 'Sessão expirada') return;
+      console.error('loadData error', e);
     } finally {
       setLoading(false);
     }
@@ -276,11 +256,16 @@ export default function FinderPortal() {
 
   async function handleAddLead(e) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !finderId) return;
     setSaving(true);
     setError('');
     try {
-      await finderFetch('/finders/portal/leads', { method: 'POST', body: form });
+      await client.mutation(convexAPI.contacts.create, {
+        ...form,
+        finderId,
+        crmType: 'investimento',
+        status: 'prospecting',
+      });
       setSuccess('Lead indicado com sucesso!');
       setForm(emptyLead);
       setShowAdd(false);
@@ -295,9 +280,14 @@ export default function FinderPortal() {
     setPwError('');
     if (pwForm.next !== pwForm.confirm) { setPwError('As senhas não coincidem'); return; }
     if (pwForm.next.length < 6) { setPwError('Nova senha deve ter ao menos 6 caracteres'); return; }
+    if (!finderId) return;
     setSavingPw(true);
     try {
-      await finderFetch('/finders/portal/password', { method: 'PATCH', body: { current_password: pwForm.current, new_password: pwForm.next } });
+      await client.mutation(convexAPI.finders.changePassword, {
+        id: finderId,
+        currentPassword: pwForm.current,
+        newPassword: pwForm.next,
+      });
       setPwSuccess('Senha alterada com sucesso!');
       setPwForm({ current: '', next: '', confirm: '' });
     } catch (err) {
@@ -305,17 +295,8 @@ export default function FinderPortal() {
     } finally { setSavingPw(false); }
   }
 
-  async function handlePhotoChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingPhoto(true);
-    try {
-      const { photo_url } = await uploadFinderPhoto(file);
-      setFinderData(p => ({ ...p, photo_url }));
-      localStorage.setItem('finder_data', JSON.stringify({ ...finderData, photo_url }));
-    } catch (err) {
-      alert(err.message || 'Erro ao fazer upload');
-    } finally { setUploadingPhoto(false); }
+  function handlePhotoChange() {
+    alert('Upload de foto em breve disponível.');
   }
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -337,12 +318,9 @@ export default function FinderPortal() {
       <nav className="px-6 py-3 flex items-center justify-between border-b"
         style={{ backgroundColor: t.navBg, borderColor: t.navBorder }}>
         <div className="flex items-center gap-3">
-          <Avatar name={finderData?.name} photoUrl={finderData?.photo_url} size={8} />
+          <Avatar name={finderData?.name} photoUrl={finderData?.photoUrl} size={8} />
           <div>
             <p className="font-serif font-bold text-sm" style={{ color: t.text }}>{finderData?.name || 'Portal Finder'}</p>
-            {finderData?.consultant_name && (
-              <p className="font-sans text-xs" style={{ color: t.textMuted }}>Consultor: {finderData.consultant_name}</p>
-            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -394,7 +372,7 @@ export default function FinderPortal() {
         )}
 
         {/* Rank / Campaign */}
-        {!loading && <RankSection rankData={rankData} myId={finderData?.id} />}
+        {!loading && <RankSection rankData={rankData} myId={finderId} />}
 
         {/* Stage stats */}
         <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
@@ -434,7 +412,7 @@ export default function FinderPortal() {
               </thead>
               <tbody>
                 {leads.map(lead => (
-                  <tr key={lead.id} className="border-t" style={{ borderColor: t.cardBorder }}>
+                  <tr key={lead._id} className="border-t" style={{ borderColor: t.cardBorder }}>
                     <td className="px-5 py-3">
                       <p className="font-sans font-semibold text-sm" style={{ color: t.text }}>{lead.name}</p>
                       {lead.email && <p className="font-sans text-xs" style={{ color: t.textMuted }}>{lead.email}</p>}
@@ -445,12 +423,12 @@ export default function FinderPortal() {
                       <StageBadge stage={lead.stage || lead.status || 'prospecting'} dark={dark} />
                     </td>
                     <td className="px-5 py-3 font-sans text-sm font-semibold" style={{ color: t.text }}>
-                      {['fechado_ganho', 'cliente_ativo'].includes(lead.stage) && Number(lead.deal_value) > 0
-                        ? Number(lead.deal_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+                      {['fechado_ganho', 'cliente_ativo'].includes(lead.stage) && Number(lead.value) > 0
+                        ? Number(lead.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
                         : <span style={{ color: t.textMuted }}>—</span>}
                     </td>
                     <td className="px-5 py-3 font-sans text-xs" style={{ color: t.textMuted }}>
-                      {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(lead._creationTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                   </tr>
                 ))}
@@ -548,16 +526,15 @@ export default function FinderPortal() {
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-serif font-bold text-xl text-white"
                     style={{ backgroundColor: '#355641' }}>
-                    {finderData?.photo_url
-                      ? <img src={finderData.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {finderData?.photoUrl
+                      ? <img src={finderData.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : (finderData?.name || '?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
                   </div>
                   <div>
-                    <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                    <button type="button" onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                    <button type="button" onClick={handlePhotoChange}
                       className="px-4 py-2 rounded-xl font-sans text-sm font-semibold border transition-all"
                       style={{ borderColor: t.cardBorder, color: t.textSub, backgroundColor: 'transparent' }}>
-                      {uploadingPhoto ? 'Enviando...' : '📷 Alterar foto'}
+                      📷 Alterar foto
                     </button>
                     <p className="font-sans text-xs mt-1" style={{ color: t.textMuted }}>JPG, PNG até 5MB</p>
                   </div>

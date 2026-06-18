@@ -2,6 +2,11 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { hashPassword } from "./auth";
 
+async function verifyHash(password: string, hash: string): Promise<boolean> {
+  const computed = await hashPassword(password);
+  return computed === hash;
+}
+
 export const list = query({
   args: {
     consultantId: v.optional(v.id("users")),
@@ -130,18 +135,34 @@ export const rank = query({
 export const portalLeads = query({
   args: { finderId: v.id("finders") },
   handler: async (ctx, { finderId }) => {
-    const deals = await ctx.db
-      .query("deals")
+    const contacts = await ctx.db
+      .query("contacts")
       .filter(q => q.eq(q.field("finderId"), finderId))
       .collect();
 
-    const enriched = await Promise.all(deals.map(async (d) => {
-      const contact = d.contactId ? await ctx.db.get(d.contactId) : null;
-      return { ...d, contactName: contact?.name ?? "—" };
+    const enriched = await Promise.all(contacts.map(async (c) => {
+      const deal = await ctx.db
+        .query("deals")
+        .filter(q => q.eq(q.field("contactId"), c._id))
+        .first();
+      return { ...c, stage: deal?.stage ?? c.status, value: deal?.value };
     }));
 
     enriched.sort((a, b) => b._creationTime - a._creationTime);
     return enriched;
+  },
+});
+
+export const changePassword = mutation({
+  args: { id: v.id("finders"), currentPassword: v.string(), newPassword: v.string() },
+  handler: async (ctx, { id, currentPassword, newPassword }) => {
+    const finder = await ctx.db.get(id);
+    if (!finder) throw new Error("Finder não encontrado");
+    const valid = await verifyHash(currentPassword, finder.passwordHash);
+    if (!valid) throw new Error("Senha atual incorreta");
+    const passwordHash = await hashPassword(newPassword);
+    await ctx.db.patch(id, { passwordHash });
+    return { success: true };
   },
 });
 
