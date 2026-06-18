@@ -388,7 +388,6 @@ export default function AdminUsers() {
       }
       setShowModal(false);
       setModalUser(null);
-      loadData();
     } catch (e) {
       toast.error(e.message);
     }
@@ -399,7 +398,6 @@ export default function AdminUsers() {
       await api.deleteUser(id);
       toast.success('Consultor excluído');
       setConfirmDelete(null);
-      loadData();
     } catch (e) {
       toast.error(e.message);
     }
@@ -409,7 +407,6 @@ export default function AdminUsers() {
     try {
       await api.toggleUser(id);
       toast.success('Status atualizado');
-      loadData();
     } catch (e) {
       toast.error(e.message);
     }
@@ -420,7 +417,6 @@ export default function AdminUsers() {
       const result = await api.uploadUserPhoto(userId, file);
       if (result.error) throw new Error(result.error);
       toast.success('Foto atualizada');
-      loadData();
     } catch (e) {
       toast.error(e.message || 'Erro ao enviar foto');
     }
