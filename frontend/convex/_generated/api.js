@@ -1,23 +1,24 @@
 /* eslint-disable */
 /**
- * Generated `api` utility.
+ * Generated `api` utility — browser-compatible, no convex/server dependency.
  *
- * THIS CODE IS AUTOMATICALLY GENERATED.
- *
- * To regenerate, run `npx convex dev`.
+ * Uses the same Symbol-based function reference format that Convex's
+ * useQuery / useMutation hooks expect internally.
  * @module
  */
 
-import { anyApi, componentsGeneric } from "convex/server";
+const FUNCTION_NAME = Symbol.for("functionName");
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
-export const api = anyApi;
-export const internal = anyApi;
-export const components = componentsGeneric();
+function createApiProxy(parts) {
+  return new Proxy(Object.create(null), {
+    get(_, prop) {
+      if (prop === FUNCTION_NAME) return parts.join(":");
+      if (typeof prop === "string") return createApiProxy([...parts, prop]);
+      return undefined;
+    },
+  });
+}
+
+export const api = createApiProxy([]);
+export const internal = createApiProxy([]);
+export const components = {};
