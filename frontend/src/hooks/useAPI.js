@@ -74,6 +74,16 @@ export function useAPI() {
       client.query(convexAPI.dashboard.stats, { ...userArgs(), crmType: 'credito' }),
     getEmployeeRanking: (tab = 'all') =>
       client.query(convexAPI.dashboard.employeeRanking, { crmType: tab }),
+    getFinanceiroOverview: ({ month, year } = {}) =>
+      client.query(convexAPI.dashboard.financeiroOverview, { month: month ?? new Date().getMonth() + 1, year: year ?? new Date().getFullYear() }),
+    getProductCatalogSettings: () =>
+      client.query(convexAPI.dashboard.financeiroSettings, {}),
+    updateProductCatalogSettings: (settings) =>
+      client.mutation(convexAPI.dashboard.updateFinanceiroSettings, { settings }),
+    changePassword: ({ currentPassword, newPassword }) =>
+      client.mutation(convexAPI.auth.changePassword, { userId, currentPassword, newPassword }),
+    updateProfile: ({ name, email }) =>
+      client.mutation(convexAPI.auth.updateProfile, { id: userId, name, email }),
 
     // ─── Clients ────────────────────────────────────────────────
     getClients: (params = {}) =>

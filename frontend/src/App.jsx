@@ -253,8 +253,8 @@ function Sidebar({ collapsed, onToggle }) {
         ))}
       </nav>
 
-      {/* Provedores */}
-      {!collapsed && (
+      {/* Provedores — apenas consultores */}
+      {!isMaster && !collapsed && (
         <div className="px-3 pb-2">
           <p className="font-sans text-xs uppercase tracking-wider text-white/30 px-3 mb-1.5">Provedores</p>
           <a
@@ -281,7 +281,7 @@ function Sidebar({ collapsed, onToggle }) {
           </a>
         </div>
       )}
-      {collapsed && (
+      {!isMaster && collapsed && (
         <div className="px-2 pb-2 space-y-0.5">
           <a
             href="https://corretor.portoseguro.com.br/corretoronline/"

@@ -783,7 +783,7 @@ export default function AdminUsers() {
         title="Excluir Consultor"
         message={`Tem certeza que deseja excluir "${confirmDelete?.name}"? Esta ação não pode ser desfeita.`}
         confirmText="Excluir"
-        onConfirm={() => handleDelete(confirmDelete.id)}
+        onConfirm={() => handleDelete(confirmDelete._id)}
         onCancel={() => setConfirmDelete(null)}
       />
     </div>

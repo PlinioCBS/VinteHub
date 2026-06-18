@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const stats = query({
@@ -94,6 +94,107 @@ export const generalStats = query({
     }));
 
     return { employees: byEmployee, totalAUM, totalClients: clients.length };
+  },
+});
+
+export const financeiroOverview = query({
+  args: { month: v.number(), year: v.number() },
+  handler: async (ctx, { month: _month, year: _year }) => {
+    const users = await ctx.db.query("users").collect();
+    const contacts = await ctx.db.query("contacts").collect();
+    const deals = await ctx.db.query("deals").collect();
+    const clientProducts = await ctx.db.query("clientProducts").collect();
+    const commissions = await ctx.db.query("userCrmCommissions").collect();
+
+    const employees = users.filter(u => u.active && u.role !== "master");
+
+    const result = employees.map(u => {
+      const myContacts = contacts.filter(c => c.userId === u._id);
+      const myDeals = deals.filter(d => d.userId === u._id);
+      const myContactIds = new Set(myContacts.map(c => c._id));
+      const myProducts = clientProducts.filter(p => myContactIds.has(p.contactId));
+      const crmComms = commissions.filter(c => c.userId === u._id);
+
+      const crm_commissions: Record<string, number> = {};
+      for (const c of crmComms) {
+        crm_commissions[c.crmType] = c.commissionPercent ?? 0;
+      }
+
+      const crm_revenue: Record<string, number> = {
+        investimento: myContacts
+          .filter(c => c.status === "cliente" && c.crmType === "investimento")
+          .reduce((s, c) => s + (c.aum ?? 0), 0),
+        credito: myProducts
+          .filter(p => p.crmType === "credito")
+          .reduce((s, p) => s + (p.creditValue ?? 0), 0),
+        cambio: myDeals
+          .filter(d => d.crmType === "cambio" && d.stage === "fechado_ganho")
+          .reduce((s, d) => s + (d.value ?? 0), 0),
+        seguro: myDeals
+          .filter(d => d.crmType === "seguro" && d.stage === "fechado_ganho")
+          .reduce((s, d) => s + (d.value ?? 0), 0),
+      };
+
+      const crm_earned: Record<string, number> = {};
+      let total_commission = 0;
+      for (const crm of Object.keys(crm_revenue)) {
+        const pct = crm_commissions[crm] ?? (u.commissionPercent ?? 0);
+        const earned = crm_revenue[crm] * pct / 100;
+        crm_earned[crm] = earned;
+        total_commission += earned;
+      }
+
+      const base_salary = u.baseSalary ?? 0;
+      return {
+        id: u._id,
+        name: u.name,
+        photo_url: u.photoUrl ?? null,
+        base_salary,
+        total_commission,
+        total_monthly: base_salary + total_commission,
+        crm_commissions,
+        crm_revenue,
+        crm_earned,
+      };
+    });
+
+    result.sort((a, b) => b.total_monthly - a.total_monthly);
+
+    const totals = {
+      total_salaries: result.reduce((s, e) => s + e.base_salary, 0),
+      total_crm_commissions: result.reduce((s, e) => s + e.total_commission, 0),
+      grand_total: result.reduce((s, e) => s + e.total_monthly, 0),
+    };
+
+    return { employees: result, totals };
+  },
+});
+
+export const financeiroSettings = query({
+  args: {},
+  handler: async (ctx) => {
+    const keys = ["fee_percent_investimento", "fee_percent_credito", "fee_percent_cambio", "fee_percent_seguro", "tax_rate"];
+    const result: Record<string, number> = {};
+    for (const key of keys) {
+      const setting = await ctx.db.query("settings").withIndex("by_key", q => q.eq("key", key)).first();
+      result[key] = setting?.value ? parseFloat(setting.value) : (key === "tax_rate" ? 0.12 : 0.55);
+    }
+    return result;
+  },
+});
+
+export const updateFinanceiroSettings = mutation({
+  args: { settings: v.any() },
+  handler: async (ctx, { settings }) => {
+    for (const [key, value] of Object.entries(settings as Record<string, number>)) {
+      const existing = await ctx.db.query("settings").withIndex("by_key", q => q.eq("key", key)).first();
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: String(value) });
+      } else {
+        await ctx.db.insert("settings", { key, value: String(value) });
+      }
+    }
+    return { success: true };
   },
 });
 

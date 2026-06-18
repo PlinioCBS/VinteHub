@@ -72,3 +72,28 @@ export const finderLogin = mutation({
 });
 
 export { hashPassword };
+
+export const changePassword = mutation({
+  args: { userId: v.id("users"), currentPassword: v.string(), newPassword: v.string() },
+  handler: async (ctx, { userId, currentPassword, newPassword }) => {
+    const user = await ctx.db.get(userId);
+    if (!user) return { success: false, error: "Usuário não encontrado" };
+    const valid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!valid) return { success: false, error: "Senha atual incorreta" };
+    const newHash = await hashPassword(newPassword);
+    await ctx.db.patch(userId, { passwordHash: newHash });
+    return { success: true };
+  },
+});
+
+export const updateProfile = mutation({
+  args: { id: v.id("users"), name: v.optional(v.string()), email: v.optional(v.string()) },
+  handler: async (ctx, { id, name, email }) => {
+    const patch: Partial<{ name: string; email: string }> = {};
+    if (name) patch.name = name;
+    if (email) patch.email = email.toLowerCase();
+    await ctx.db.patch(id, patch);
+    const updated = await ctx.db.get(id);
+    return { success: true, user: updated };
+  },
+});

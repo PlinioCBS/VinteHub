@@ -328,6 +328,7 @@ function PdfImportPanel() {
 
 // ─── Modal de Configurações Financeiras (Master) ─────────────────────────────
 function FinanceiroSettingsModal({ open, onClose }) {
+  const api = useAPI();
   const [settings, setSettings] = useState({
     fee_percent_investimento: 0.55, fee_percent_credito: 0.55,
     fee_percent_cambio: 0.55, fee_percent_seguro: 0.55, tax_rate: 0.12,
@@ -442,6 +443,7 @@ function FinanceiroSettingsModal({ open, onClose }) {
 }
 
 export default function Financeiro() {
+  const api = useAPI();
   const { isMaster } = useAuth();
   const navigate = useNavigate();
 
