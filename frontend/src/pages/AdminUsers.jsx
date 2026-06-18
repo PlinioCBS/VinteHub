@@ -18,9 +18,9 @@ function fmt(v) {
 }
 
 function UserModal({ user, onClose, onSave }) {
-  const api = useAPI();
+  // Parse crmAccess (camelCase from Convex)
   const parsedAccess = user
-    ? (user.crm_access === 'all' ? 'all' : (() => { try { return JSON.parse(user.crm_access); } catch { return 'all'; } })())
+    ? (user.crmAccess === 'all' ? 'all' : (() => { try { return JSON.parse(user.crmAccess); } catch { return 'all'; } })())
     : 'all';
 
   const [form, setForm] = useState({
@@ -28,32 +28,32 @@ function UserModal({ user, onClose, onSave }) {
     email: user?.email || '',
     password: '',
     role: user?.role || 'employee',
-    crm_access: parsedAccess,
+    crmAccess: parsedAccess,
     active: user?.active !== undefined ? Boolean(user.active) : true,
-    state: user?.state || ''
+    state: user?.state || '',
   });
 
-  // comissões por CRM: { investimento: 0.18, cambio: 0.12, ... }
+  // comissões por CRM vindas do objeto enriquecido: { investimento: 0.18, ... }
   const [crmCommissions, setCrmCommissions] = useState(user?.crm_commissions || {});
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const isEdit = !!user;
 
-  // CRMs que estão ativos (acesso)
-  const activeCRMs = form.crm_access === 'all'
+  // CRMs ativos (acesso)
+  const activeCRMs = form.crmAccess === 'all'
     ? CRM_OPTIONS.map(c => c.key)
-    : (Array.isArray(form.crm_access) ? form.crm_access : []);
+    : (Array.isArray(form.crmAccess) ? form.crmAccess : []);
 
   const handleCRMToggle = (key) => {
-    if (form.crm_access === 'all') {
-      setForm(f => ({ ...f, crm_access: [key] }));
+    if (form.crmAccess === 'all') {
+      setForm(f => ({ ...f, crmAccess: [key] }));
     } else {
-      const arr = Array.isArray(form.crm_access) ? form.crm_access : [];
+      const arr = Array.isArray(form.crmAccess) ? form.crmAccess : [];
       if (arr.includes(key)) {
         const next = arr.filter(k => k !== key);
-        setForm(f => ({ ...f, crm_access: next.length === 0 ? ['investimento'] : next }));
+        setForm(f => ({ ...f, crmAccess: next.length === 0 ? ['investimento'] : next }));
       } else {
-        setForm(f => ({ ...f, crm_access: [...arr, key] }));
+        setForm(f => ({ ...f, crmAccess: [...arr, key] }));
       }
     }
   };
@@ -73,26 +73,30 @@ function UserModal({ user, onClose, onSave }) {
     if (!validate()) return;
     setLoading(true);
     try {
-      // filtra comissões apenas dos CRMs com acesso
+      // Comissões filtradas pelos CRMs com acesso
       const filteredCommissions = {};
       activeCRMs.forEach(k => { filteredCommissions[k] = parseFloat(crmCommissions[k] || 0); });
 
+      // Payload limpo com camelCase — apenas os campos que o Convex aceita
       const payload = {
-        ...form,
-        crm_access: form.crm_access === 'all' ? 'all' : JSON.stringify(form.crm_access),
-        commission_percent: 0,
-        crm_commissions: filteredCommissions,
-        active: form.active ? 1 : 0
+        name: form.name.trim(),
+        email: form.email.trim(),
+        role: form.role,
+        crmAccess: form.crmAccess === 'all' ? 'all' : JSON.stringify(form.crmAccess),
+        active: form.active ? 1 : 0,
+        state: form.state || undefined,
       };
-      if (isEdit && !form.password) delete payload.password;
-      await onSave(payload);
+      if (form.password) payload.password = form.password;
+
+      // commissions são salvas separadamente pelo handleSave do pai
+      await onSave(payload, filteredCommissions);
     } finally {
       setLoading(false);
     }
   };
 
   // CRMs visíveis para seleção de comissão
-  const crmsForCommission = form.crm_access === 'all' ? CRM_OPTIONS : CRM_OPTIONS.filter(c => activeCRMs.includes(c.key));
+  const crmsForCommission = form.crmAccess === 'all' ? CRM_OPTIONS : CRM_OPTIONS.filter(c => activeCRMs.includes(c.key));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
@@ -202,23 +206,23 @@ function UserModal({ user, onClose, onSave }) {
               <label className="font-sans text-xs font-semibold text-gray-500 uppercase tracking-wider">Acesso e Comissão por CRM</label>
               <div className="flex gap-1.5">
                 <button type="button"
-                  onClick={() => setForm(f => ({ ...f, crm_access: 'all' }))}
+                  onClick={() => setForm(f => ({ ...f, crmAccess: 'all' }))}
                   className="px-2.5 py-1 rounded-lg text-xs font-sans font-semibold transition-all"
-                  style={{ backgroundColor: form.crm_access === 'all' ? '#355641' : 'var(--bg-page)', color: form.crm_access === 'all' ? 'white' : '#6b7280' }}
+                  style={{ backgroundColor: form.crmAccess === 'all' ? '#355641' : 'var(--bg-page)', color: form.crmAccess === 'all' ? 'white' : '#6b7280' }}
                 >Todos</button>
                 <button type="button"
-                  onClick={() => { if (form.crm_access === 'all') setForm(f => ({ ...f, crm_access: ['investimento'] })); }}
+                  onClick={() => { if (form.crmAccess === 'all') setForm(f => ({ ...f, crmAccess: ['investimento'] })); }}
                   className="px-2.5 py-1 rounded-lg text-xs font-sans font-semibold transition-all"
-                  style={{ backgroundColor: form.crm_access !== 'all' ? '#dd7752' : 'var(--bg-page)', color: form.crm_access !== 'all' ? 'white' : '#6b7280' }}
+                  style={{ backgroundColor: form.crmAccess !== 'all' ? '#dd7752' : 'var(--bg-page)', color: form.crmAccess !== 'all' ? 'white' : '#6b7280' }}
                 >Personalizado</button>
               </div>
             </div>
 
             <div className="space-y-2">
               {CRM_OPTIONS.map(crm => {
-                const arr = Array.isArray(form.crm_access) ? form.crm_access : [];
-                const selected = form.crm_access === 'all' || arr.includes(crm.key);
-                const locked = form.crm_access === 'all';
+                const arr = Array.isArray(form.crmAccess) ? form.crmAccess : [];
+                const selected = form.crmAccess === 'all' || arr.includes(crm.key);
+                const locked = form.crmAccess === 'all';
                 const pct = crmCommissions[crm.key] ?? '';
 
                 return (
@@ -374,17 +378,23 @@ export default function AdminUsers() {
     if (!isMaster) { window.location.href = '/'; }
   }, [isMaster]);
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, commissions = {}) => {
     try {
+      let userId;
       if (modalUser) {
-        await api.updateUser(modalUser.id, data);
+        await api.updateUser(modalUser._id, data);
+        userId = modalUser._id;
         toast.success('Consultor atualizado com sucesso');
-        if (String(currentUser?.id) === String(modalUser.id)) {
-          await refreshUser();
-        }
+        if (String(currentUser?._id) === String(modalUser._id)) await refreshUser();
       } else {
-        await api.createUser(data);
+        userId = await api.createUser(data);
         toast.success('Consultor criado com sucesso');
+      }
+      // Salvar comissões por CRM separadamente
+      if (userId && commissions) {
+        for (const [crmType, commissionPercent] of Object.entries(commissions)) {
+          await api.updateCRMCommission(userId, crmType, commissionPercent);
+        }
       }
       setShowModal(false);
       setModalUser(null);
@@ -422,10 +432,10 @@ export default function AdminUsers() {
     }
   };
 
-  const getCRMAccessLabel = (crm_access) => {
-    if (!crm_access || crm_access === 'all') return ['Todos'];
+  const getCRMAccessLabel = (crmAccess) => {
+    if (!crmAccess || crmAccess === 'all') return ['Todos'];
     try {
-      const arr = JSON.parse(crm_access);
+      const arr = JSON.parse(crmAccess);
       return arr.map(k => CRM_CONFIG[k]?.label || k);
     } catch {
       return ['Todos'];
@@ -483,19 +493,19 @@ export default function AdminUsers() {
                 <tr><td colSpan={7} className="py-4 text-center font-sans text-sm text-gray-400">Nenhum consultor</td></tr>
               ) : users.filter(u => u.role !== 'master').map(u => {
                 const commissions = u.crm_commissions || {};
-                const crmAccess = u.crm_access === 'all'
+                const crmAccess = u.crmAccess === 'all'
                   ? Object.keys(CRM_CONFIG)
-                  : (() => { try { return JSON.parse(u.crm_access); } catch { return []; } })();
+                  : (() => { try { return JSON.parse(u.crmAccess); } catch { return []; } })();
                 const totalMonthly = Object.entries(CRM_CONFIG).reduce((sum, [key]) => {
                   if (!crmAccess.includes(key)) return sum;
                   return sum + totalMonthlyRevenue * ((commissions[key] || 0) / 100);
                 }, 0);
                 return (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={u._id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
                       <div className="flex items-center gap-2">
-                        {u.photo_url ? (
-                          <img src={u.photo_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt={u.name} />
+                        {u.photoUrl ? (
+                          <img src={u.photoUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt={u.name} />
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center font-serif font-bold text-sm text-white flex-shrink-0"
                             style={{ backgroundColor: u.role === 'master' ? '#355641' : '#dd7752' }}>
@@ -582,15 +592,14 @@ export default function AdminUsers() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.filter(u => u.role !== 'master').map(u => {
-            const crmLabels = getCRMAccessLabel(u.crm_access);
-            const monthly = totalMonthlyRevenue * (u.commission_percent / 100);
+            const crmLabels = getCRMAccessLabel(u.crmAccess);
             return (
-              <div key={u.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-200">
+              <div key={u._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-200">
                 <div className="p-5">
                   <div className="flex items-start gap-3 mb-4">
                     <div className="relative flex-shrink-0">
-                      {u.photo_url ? (
-                        <img src={u.photo_url} className="w-12 h-12 rounded-xl object-cover" alt={u.name} />
+                      {u.photoUrl ? (
+                        <img src={u.photoUrl} className="w-12 h-12 rounded-xl object-cover" alt={u.name} />
                       ) : (
                         <div
                           className="w-12 h-12 rounded-xl flex items-center justify-center font-serif font-bold text-xl text-white"
@@ -603,7 +612,7 @@ export default function AdminUsers() {
                         className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full border border-gray-200 flex items-center justify-center cursor-pointer shadow-sm hover:bg-gray-50 transition-colors"
                         title="Alterar foto"
                       >
-                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) handlePhotoUpload(u.id, f); e.target.value = ''; }} />
+                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) handlePhotoUpload(u._id, f); e.target.value = ''; }} />
                         <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" />
                         </svg>
@@ -650,9 +659,9 @@ export default function AdminUsers() {
 
                   {/* Clientes por CRM */}
                   {(() => {
-                    const crmAccess = u.crm_access === 'all'
+                    const crmAccess = u.crmAccess === 'all'
                       ? Object.keys(CRM_CONFIG)
-                      : (() => { try { return JSON.parse(u.crm_access); } catch { return []; } })();
+                      : (() => { try { return JSON.parse(u.crmAccess); } catch { return []; } })();
                     const clientsByCRM = u.clients_by_crm || {};
                     const commissions = u.crm_commissions || {};
                     return (
@@ -719,7 +728,7 @@ export default function AdminUsers() {
                       {u.active ? 'Ativo' : 'Inativo'}
                     </span>
                     <p className="font-sans text-xs text-gray-400">
-                      Desde {new Date(u.created_at).toLocaleDateString('pt-BR')}
+                      Desde {new Date(u._creationTime).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
                 </div>
@@ -727,7 +736,7 @@ export default function AdminUsers() {
                 {/* Actions */}
                 <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-2">
                   <button
-                    onClick={() => navigate(`/admin/consultor/${u.id}`)}
+                    onClick={() => navigate(`/admin/consultor/${u._id}`)}
                     className="flex-1 py-1.5 rounded-lg font-sans text-xs font-semibold text-white hover:opacity-90 transition-all"
                     style={{ backgroundColor: '#355641' }}
                   >
@@ -740,7 +749,7 @@ export default function AdminUsers() {
                     Edição Rápida
                   </button>
                   <button
-                    onClick={() => handleToggle(u.id)}
+                    onClick={() => handleToggle(u._id)}
                     className="py-1.5 px-3 rounded-lg font-sans text-xs font-medium transition-all border"
                     style={{
                       borderColor: u.active ? '#fca5a5' : '#86efac',

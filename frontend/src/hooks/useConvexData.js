@@ -129,7 +129,7 @@ export function useClientsRevenue(overrides = {}) {
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export function useUsers() {
-  return useQuery(api.users.list, {}) ?? [];
+  return useQuery(api.users.listEnriched, {}) ?? [];
 }
 
 export function useUser(id) {

@@ -10,6 +10,43 @@ export const list = query({
   },
 });
 
+export const listEnriched = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const contacts = await ctx.db.query("contacts").collect();
+    const deals = await ctx.db.query("deals").collect();
+    const commissions = await ctx.db.query("userCrmCommissions").collect();
+
+    return users.map(u => {
+      const myContacts = contacts.filter(c => c.userId === u._id);
+      const myDeals = deals.filter(d => d.userId === u._id);
+      const myClients = myContacts.filter(c => c.status === "cliente");
+      const myProspects = myContacts.filter(c => c.status !== "cliente");
+      const myOpenDeals = myDeals.filter(d => !["fechado_ganho", "fechado_perdido"].includes(d.stage ?? ""));
+
+      const crm_commissions: Record<string, number> = {};
+      for (const c of commissions.filter(c => c.userId === u._id)) {
+        crm_commissions[c.crmType] = c.commissionPercent ?? 0;
+      }
+
+      const clients_by_crm: Record<string, number> = {};
+      for (const c of myClients) {
+        if (c.crmType) clients_by_crm[c.crmType] = (clients_by_crm[c.crmType] ?? 0) + 1;
+      }
+
+      return {
+        ...u,
+        active_clients: myClients.length,
+        total_prospects: myProspects.length,
+        open_deals: myOpenDeals.length,
+        crm_commissions,
+        clients_by_crm,
+      };
+    });
+  },
+});
+
 export const get = query({
   args: { id: v.id("users") },
   handler: async (ctx, { id }) => {
