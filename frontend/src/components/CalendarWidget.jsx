@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 export default function CalendarWidget({ contactId }) {
+  const api = useAPI();
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [calStatus, setCalStatus] = useState({ connected: false });

@@ -41,7 +41,7 @@ export default function CRMSelector() {
       {open && (
         <div
           className="absolute right-0 top-full mt-2 w-52 rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50"
-          style={{ backgroundColor: 'white' }}
+          style={{ backgroundColor: 'var(--bg-card)' }}
         >
           <div className="px-3 py-2 border-b border-gray-100">
             <p className="text-xs font-sans text-gray-400 font-medium uppercase tracking-wider">Selecionar CRM</p>

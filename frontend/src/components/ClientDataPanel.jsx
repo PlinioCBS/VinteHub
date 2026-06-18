@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import InlineField from './InlineField.jsx';
 
 export default function ClientDataPanel({ contact, onUpdate }) {
+  const api = useAPI();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import InlineField from './InlineField.jsx';
 
 const PROFILES = [
@@ -10,6 +10,7 @@ const PROFILES = [
 ];
 
 export default function SuitabilityPanel({ contact, onUpdate }) {
+  const api = useAPI();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 

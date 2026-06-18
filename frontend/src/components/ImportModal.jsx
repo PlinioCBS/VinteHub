@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import Modal from './Modal.jsx';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 
 const CONTACT_FIELDS = [
   { key: 'name', label: 'Nome' },
@@ -42,6 +42,7 @@ function autoDetect(header) {
 }
 
 export default function ImportModal({ open, onClose, onSuccess }) {
+  const api = useAPI();
   const [step, setStep] = useState(1); // 1=upload, 2=mapping, 3=result
   const [parsed, setParsed] = useState(null);
   const [mapping, setMapping] = useState({});

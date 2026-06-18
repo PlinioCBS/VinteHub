@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import InlineField from './InlineField.jsx';
 
 const fmt = (v) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function RevenuePanel() {
+  const api = useAPI();
   const [revenue, setRevenue] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +43,7 @@ export default function RevenuePanel() {
       <div className="card p-5 flex flex-col gap-1">
         <p className="label">Fee de Gestão</p>
         <div className="flex items-baseline gap-1">
-          <InlineField value={revenue.fee} onSave={saveFee} type="number" suffix="% a.a." className="font-serif text-2xl text-brown" />
+          <InlineField value={revenue.fee} onSave={saveFee} type="number" suffix="% " className="font-serif text-2xl text-brown" />
         </div>
         <p className="text-xs text-charcoal/40">Clique para editar</p>
       </div>

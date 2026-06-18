@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
 import { CRM_CONFIG } from '../contexts/CRMContext.jsx';
@@ -13,6 +13,7 @@ function fmt(v) {
 }
 
 function Section({ title, icon, children, defaultOpen = true }) {
+  const api = useAPI();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -54,8 +55,8 @@ function Field({ label, value, onChange, type = 'text', disabled = false, suffix
           style={{
             borderColor: error ? '#dc2626' : focused ? '#355641' : '#e5e7eb',
             boxShadow: focused && !disabled ? '0 0 0 3px #35564115' : 'none',
-            backgroundColor: disabled ? '#f9fafb' : 'white',
-            color: disabled ? '#9ca3af' : '#111827',
+            backgroundColor: disabled ? 'var(--bg-page)' : 'var(--bg-card)',
+            color: disabled ? '#9ca3af' : 'var(--text-primary)',
             paddingRight: suffix ? '2.5rem' : undefined
           }}
         />
@@ -128,7 +129,7 @@ export default function EmployeeProfile() {
       });
       setCrmCommissions(found.crm_commissions || {});
     } catch (e) {
-      toast.error('Erro ao carregar funcionário');
+      toast.error('Erro ao carregar consultor');
       navigate('/admin');
     } finally {
       setLoading(false);
@@ -291,20 +292,20 @@ export default function EmployeeProfile() {
             </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="font-serif font-bold text-2xl text-gray-900">{form.name || 'Funcionário'}</h1>
+                <h1 className="font-serif font-bold text-2xl text-gray-900">{form.name || 'Consultor'}</h1>
                 <span
                   className="px-3 py-0.5 rounded-full text-xs font-sans font-bold"
                   style={{
-                    backgroundColor: form.role === 'master' ? '#f0f4f1' : '#fdf3ee',
+                    backgroundColor: form.role === 'master' ? 'rgba(53,86,65,0.08)' : 'rgba(221,119,82,0.08)',
                     color: form.role === 'master' ? '#355641' : '#dd7752'
                   }}
                 >
-                  {form.role === 'master' ? 'MASTER' : 'FUNCIONÁRIO'}
+                  {form.role === 'master' ? 'MASTER' : 'CONSULTOR'}
                 </span>
                 <span
                   className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-sans font-medium"
                   style={{
-                    backgroundColor: form.active ? '#f0fdf4' : '#f3f4f6',
+                    backgroundColor: form.active ? 'rgba(22,163,74,0.08)' : 'var(--bg-page)',
                     color: form.active ? '#16a34a' : '#6b7280'
                   }}
                 >
@@ -320,9 +321,9 @@ export default function EmployeeProfile() {
           </div>
 
           {/* Comissão destaque */}
-          <div className="text-right p-4 rounded-xl" style={{ backgroundColor: '#f0f4f1', minWidth: 160 }}>
+          <div className="text-right p-4 rounded-xl" style={{ backgroundColor: 'rgba(53,86,65,0.08)', minWidth: 160 }}>
             <p className="font-sans text-xs text-gray-500 mb-1 uppercase tracking-wider">Ganho mensal estimado</p>
-            <p className="font-serif font-bold text-2xl" style={{ color: '#355641' }}>{fmt(commission)}</p>
+            <p className="font-serif font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>{fmt(commission)}</p>
             <p className="font-sans text-xs text-gray-400 mt-0.5">{form.commission_percent}% sobre {fmt(totalMonthly)}</p>
           </div>
         </div>
@@ -360,18 +361,18 @@ export default function EmployeeProfile() {
                     onClick={() => setForm(f => ({ ...f, role: r }))}
                     className="flex-1 py-2 rounded-xl border font-sans text-sm font-medium transition-all"
                     style={{
-                      backgroundColor: form.role === r ? (r === 'master' ? '#355641' : '#dd7752') : '#f9fafb',
+                      backgroundColor: form.role === r ? (r === 'master' ? '#355641' : '#dd7752') : 'var(--bg-page)',
                       borderColor: form.role === r ? (r === 'master' ? '#355641' : '#dd7752') : '#e5e7eb',
                       color: form.role === r ? 'white' : '#6b7280',
                     }}
                   >
-                    {r === 'master' ? '⭐ Master' : '👤 Funcionário'}
+                    {r === 'master' ? '⭐ Master' : '👤 Consultor'}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: '#f9fafb' }}>
+            <div className="mt-4 flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-page)' }}>
               <div>
                 <p className="font-sans text-sm font-medium text-gray-800">Conta ativa</p>
                 <p className="font-sans text-xs text-gray-400">Permite login no sistema</p>
@@ -432,7 +433,7 @@ export default function EmployeeProfile() {
                 onClick={() => setForm(f => ({ ...f, crm_access: 'all' }))}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium transition-all border"
                 style={{
-                  backgroundColor: form.crm_access === 'all' ? '#355641' : '#f9fafb',
+                  backgroundColor: form.crm_access === 'all' ? '#355641' : 'var(--bg-page)',
                   borderColor: form.crm_access === 'all' ? '#355641' : '#e5e7eb',
                   color: form.crm_access === 'all' ? 'white' : '#6b7280',
                 }}
@@ -444,7 +445,7 @@ export default function EmployeeProfile() {
                 onClick={() => setForm(f => ({ ...f, crm_access: Array.isArray(f.crm_access) ? f.crm_access : ['investimento'] }))}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium transition-all border"
                 style={{
-                  backgroundColor: form.crm_access !== 'all' ? '#fdf3ee' : '#f9fafb',
+                  backgroundColor: form.crm_access !== 'all' ? 'rgba(221,119,82,0.08)' : 'var(--bg-page)',
                   borderColor: form.crm_access !== 'all' ? '#dd7752' : '#e5e7eb',
                   color: form.crm_access !== 'all' ? '#dd7752' : '#6b7280',
                 }}
@@ -465,7 +466,7 @@ export default function EmployeeProfile() {
                     onClick={() => !locked && handleCRMToggle(crm.key)}
                     className="flex items-center gap-3 p-3 rounded-xl border font-sans text-sm font-medium transition-all text-left"
                     style={{
-                      backgroundColor: selected ? crm.bgLight : '#f9fafb',
+                      backgroundColor: selected ? crm.bgLight : 'var(--bg-page)',
                       borderColor: selected ? crm.color + '50' : '#e5e7eb',
                       color: selected ? crm.color : '#9ca3af',
                       cursor: locked ? 'default' : 'pointer',
@@ -548,7 +549,7 @@ export default function EmployeeProfile() {
                             placeholder="ex: 0.25"
                             title="Digite em % — ex: 0.25 para 0,25% ou 1.5 para 1,5%"
                             className="w-full pl-3 pr-7 py-2 rounded-lg border font-serif text-lg font-bold outline-none transition-all"
-                            style={{ borderColor: crm.color + '40', color: crm.color, backgroundColor: 'white' }}
+                            style={{ borderColor: crm.color + '40', color: crm.color, backgroundColor: 'var(--bg-card)' }}
                             onFocus={e => { e.target.style.borderColor = crm.color; e.target.style.boxShadow = `0 0 0 3px ${crm.color}20`; }}
                             onBlur={e => { e.target.style.borderColor = crm.color + '40'; e.target.style.boxShadow = 'none'; }}
                           />
@@ -599,7 +600,7 @@ export default function EmployeeProfile() {
                     <>
                       <div className="flex justify-between items-center">
                         <span className="font-sans text-xs text-gray-400">Total mensal</span>
-                        <span className="font-sans text-sm font-bold" style={{ color: '#355641' }}>{fmt(totalEarning)}</span>
+                        <span className="font-sans text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmt(totalEarning)}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="font-sans text-xs text-gray-400">Total anual</span>
@@ -619,11 +620,11 @@ export default function EmployeeProfile() {
               <h3 className="font-serif font-bold text-gray-900">Segurança</h3>
             </div>
             <div className="p-6">
-              <p className="font-sans text-xs text-gray-400 mb-3">Redefina a senha de acesso do funcionário ao sistema.</p>
+              <p className="font-sans text-xs text-gray-400 mb-3">Redefina a senha de acesso do consultor ao sistema.</p>
               <button
                 onClick={() => setShowPasswordModal(true)}
                 className="w-full py-2.5 rounded-xl border font-sans text-sm font-medium transition-all hover:bg-gray-50"
-                style={{ borderColor: '#e5e7eb', color: '#374151' }}
+                style={{ borderColor: '#e5e7eb', color: 'var(--text-muted)' }}
               >
                 🔑 Redefinir Senha
               </button>

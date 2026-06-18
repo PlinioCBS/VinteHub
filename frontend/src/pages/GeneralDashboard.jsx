@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import { CRM_CONFIG } from '../contexts/CRMContext.jsx';
 
 function fmt(v) {
@@ -24,11 +24,11 @@ const CRM_COLORS = Object.fromEntries(
 );
 
 const RANKING_TABS = [
-  { key: 'all', label: 'Geral', icon: '🏆' },
-  { key: 'investimento', label: 'Investimento', icon: '📈' },
-  { key: 'credito', label: 'Crédito', icon: '💳' },
-  { key: 'cambio', label: 'Câmbio', icon: '💱' },
-  { key: 'seguro', label: 'Seguro', icon: '🛡️' },
+  { key: 'all', label: 'Geral' },
+  { key: 'investimento', label: 'Investimento' },
+  { key: 'credito', label: 'Crédito' },
+  { key: 'cambio', label: 'Câmbio' },
+  { key: 'seguro', label: 'Seguro' },
 ];
 
 const RANK_STYLES = [
@@ -67,10 +67,10 @@ function RankingColumns({ tab }) {
   if (tab === 'all') {
     return (
       <>
-        <th className="px-3 py-3 text-right text-xs font-semibold uppercase" style={{ color: '#355641' }}>📈 AUM</th>
-        <th className="px-3 py-3 text-right text-xs font-semibold uppercase" style={{ color: '#7c3aed' }}>💳 Crédito</th>
-        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase">💱 Câmbio</th>
-        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase">🛡️ Seguro</th>
+        <th className="px-3 py-3 text-right text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>AUM</th>
+        <th className="px-3 py-3 text-right text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Crédito</th>
+        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Câmbio</th>
+        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Seguro</th>
         <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Clientes</th>
       </>
     );
@@ -106,8 +106,8 @@ function RankingCells({ emp, tab, rankingAllData }) {
     const creditTotal = emp.credit_volume || 0;
     return (
       <>
-        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: '#355641' }}>{fmt(emp.total_aum)}</td>
-        <td className="px-3 py-3 text-right text-sm font-semibold" style={{ color: '#7c3aed' }}>{fmt(creditTotal)}</td>
+        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{fmt(emp.total_aum)}</td>
+        <td className="px-3 py-3 text-right text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(creditTotal)}</td>
         <td className="px-3 py-3 text-right text-sm text-gray-400">—</td>
         <td className="px-3 py-3 text-right text-sm text-gray-400">—</td>
         <td className="px-3 py-3 text-right text-sm text-gray-700">{emp.active_clients}</td>
@@ -116,7 +116,7 @@ function RankingCells({ emp, tab, rankingAllData }) {
   }
   if (tab === 'investimento') {
     return (
-      <td className="px-3 py-3 text-right font-bold text-base" style={{ color: '#355641' }}>{fmt(emp.total_aum)}</td>
+      <td className="px-3 py-3 text-right font-bold text-base" style={{ color: 'var(--text-primary)' }}>{fmt(emp.total_aum)}</td>
     );
   }
   if (tab === 'credito') {
@@ -124,9 +124,9 @@ function RankingCells({ emp, tab, rankingAllData }) {
     const bancorbras = emp.credit_by_type?.consorcio_bancorbras || 0;
     return (
       <>
-        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: '#7c3aed' }}>{fmt(porto)}</td>
-        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: '#4f46e5' }}>{fmt(bancorbras)}</td>
-        <td className="px-3 py-3 text-right font-bold text-sm" style={{ color: '#7c3aed' }}>{fmt(emp.credit_volume)}</td>
+        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{fmt(porto)}</td>
+        <td className="px-3 py-3 text-right font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{fmt(bancorbras)}</td>
+        <td className="px-3 py-3 text-right font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{fmt(emp.credit_volume)}</td>
       </>
     );
   }
@@ -139,6 +139,7 @@ function RankingCells({ emp, tab, rankingAllData }) {
 }
 
 function EmployeeRanking() {
+  const api = useAPI();
   const [activeTab, setActiveTab] = useState('all');
   const [rankingData, setRankingData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -188,14 +189,13 @@ function EmployeeRanking() {
               <button
                 key={tab.key}
                 onClick={() => handleTab(tab.key)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold font-sans transition-all whitespace-nowrap"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold font-sans transition-all whitespace-nowrap"
                 style={{
-                  backgroundColor: isActive ? color : '#f3f4f6',
+                  backgroundColor: isActive ? color : 'var(--bg-page)',
                   color: isActive ? '#fff' : '#6b7280',
                   border: `1.5px solid ${isActive ? color : 'transparent'}`
                 }}
               >
-                <span>{tab.icon}</span>
                 {tab.label}
               </button>
             );
@@ -209,7 +209,6 @@ function EmployeeRanking() {
         </div>
       ) : employees.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <span className="text-4xl mb-3">👤</span>
           <p className="font-sans text-sm">Nenhum colaborador cadastrado</p>
         </div>
       ) : (
@@ -289,12 +288,11 @@ export default function GeneralDashboard() {
       {/* Top KPIs — AUM Total + Clientes Ativos */}
       <div className="grid grid-cols-2 gap-4 mb-8 max-w-2xl">
         {[
-          { label: 'AUM Total', value: loading ? null : fmt(data?.grandTotalAUM ?? data?.totalAUM), icon: '💰', color: '#355641' },
-          { label: 'Clientes Ativos', value: loading ? null : data?.totalClients, icon: '👥', color: '#7c3aed' },
+          { label: 'AUM Total', value: loading ? null : fmt(data?.grandTotalAUM ?? data?.totalAUM), color: '#355641' },
+          { label: 'Clientes Ativos', value: loading ? null : data?.totalClients, color: '#7c3aed' },
         ].map((kpi, i) => (
           <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl">{kpi.icon}</span>
+            <div className="flex items-center justify-end mb-3">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: kpi.color }} />
             </div>
             {loading ? (
@@ -334,23 +332,21 @@ export default function GeneralDashboard() {
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', fontFamily: 'sans-serif', fontSize: 12 }}
                 />
                 <Legend
-                  formatter={(value) => <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: '#374151' }}>{value}</span>}
+                  formatter={(value) => <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'var(--text-muted)' }}>{value}</span>}
                 />
               </PieChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center text-gray-400">
-              <span className="text-4xl mb-3">📊</span>
               <p className="font-sans text-sm">Nenhum dado de receita ainda</p>
             </div>
           )}
         </div>
 
-        {/* Crédito summary card */}
+        {/* Produção de Crédito summary card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center gap-2 mb-5">
-            <span className="text-2xl">💳</span>
-            <h2 className="font-serif font-bold text-lg" style={{ color: '#7c3aed' }}>Crédito Intermediado</h2>
+            <h2 className="font-serif font-bold text-lg" style={{ color: 'var(--text-primary)' }}>Produção de Crédito</h2>
           </div>
           {loading ? (
             <div className="space-y-3">
@@ -359,46 +355,34 @@ export default function GeneralDashboard() {
           ) : (
             <>
               <div className="space-y-3 mb-4">
-                <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: '#f5f3ff' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🏛️</span>
-                    <span className="font-sans text-sm font-medium text-gray-700">Porto Seguro Bank</span>
-                  </div>
-                  <span className="font-serif font-bold text-base" style={{ color: '#7c3aed' }}>
+                <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'rgba(124,58,237,0.08)' }}>
+                  <span className="font-sans text-sm font-medium text-gray-700">Porto Seguro Bank</span>
+                  <span className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                     {fmt(creditSummary?.porto_total || 0)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: '#eef2ff' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🏦</span>
-                    <span className="font-sans text-sm font-medium text-gray-700">BancorBras</span>
-                  </div>
-                  <span className="font-serif font-bold text-base" style={{ color: '#4f46e5' }}>
+                <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'rgba(79,70,229,0.08)' }}>
+                  <span className="font-sans text-sm font-medium text-gray-700">BancorBras</span>
+                  <span className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                     {fmt(creditSummary?.bancorbras_total || 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">📋</span>
-                    <span className="font-sans text-sm font-medium text-gray-700">Carta Contemplada</span>
-                  </div>
-                  <span className="font-serif font-bold text-base" style={{ color: '#0891b2' }}>
+                  <span className="font-sans text-sm font-medium text-gray-700">Carta Contemplada</span>
+                  <span className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                     {fmt(creditSummary?.carta_total || 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🏠</span>
-                    <span className="font-sans text-sm font-medium text-gray-700">Financiamento</span>
-                  </div>
-                  <span className="font-serif font-bold text-base" style={{ color: '#059669' }}>
+                  <span className="font-sans text-sm font-medium text-gray-700">Financiamento</span>
+                  <span className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                     {fmt(creditSummary?.financiamento_total || 0)}
                   </span>
                 </div>
               </div>
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="font-sans text-sm font-semibold text-gray-600">Total intermediado</span>
-                <span className="font-serif text-xl font-bold" style={{ color: '#7c3aed' }}>
+                <span className="font-sans text-sm font-semibold text-gray-600">Total Produção de Crédito</span>
+                <span className="font-serif text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
                   {fmt(creditSummary?.grand_total || 0)}
                 </span>
               </div>
@@ -429,27 +413,40 @@ export default function GeneralDashboard() {
                 {/* Color accent bar */}
                 <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: cardColor }} />
                 <div className="mt-2">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">{cfg.icon}</span>
+                  <div className="flex items-center mb-4">
                     <span className="font-serif font-bold text-base" style={{ color: cardColor }}>{crm.label || cfg.label}</span>
                   </div>
                   <div className="space-y-2.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-sans text-xs text-gray-500">Fee</span>
-                      <span className="font-sans text-xs font-semibold text-gray-800">{crm.fee}% a.a.</span>
-                    </div>
+                    {crm.crm_type !== 'credito' && (
+                      <div className="flex justify-between items-center">
+                        <span className="font-sans text-xs text-gray-500">{crm.crm_type === 'investimento' ? 'FEE' : 'Comissão'}</span>
+                        <span className="font-sans text-xs font-semibold text-gray-800">{crm.fee}%</span>
+                      </div>
+                    )}
                     {crm.crm_type === 'credito' ? (
                       <>
-                        <div className="flex justify-between items-center">
-                          <span className="font-sans text-xs text-gray-500">Porto</span>
-                          <span className="font-sans text-xs font-semibold" style={{ color: '#7c3aed' }}>{fmt(creditSummary?.porto_total || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-sans text-xs text-gray-500">BancorBras</span>
-                          <span className="font-sans text-xs font-semibold" style={{ color: '#4f46e5' }}>{fmt(creditSummary?.bancorbras_total || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-sans text-xs text-gray-500">Total Crédito</span>
+                        {(creditSummary?.product_entries?.length > 0
+                          ? creditSummary.product_entries
+                          : [
+                              { name: 'Porto', value_key: 'consorcio_porto', total: creditSummary?.porto_total || 0, fee_percent: crm.fee },
+                              { name: 'BancorBras', value_key: 'consorcio_bancorbras', total: creditSummary?.bancorbras_total || 0, fee_percent: crm.fee },
+                            ]
+                        ).map((p, i) => (
+                          <React.Fragment key={p.value_key}>
+                            <div className="flex justify-between items-center">
+                              <span className="font-sans text-xs text-gray-500">{p.name}</span>
+                              <span className="font-sans text-xs font-semibold" style={{ color: '#7c3aed' }}>{fmt(p.total)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="font-sans text-xs text-gray-400 pl-2">↳ Comissão {p.name}</span>
+                              <span className="font-sans text-xs font-semibold" style={{ color: p.has_own_fee ? '#355641' : '#9ca3af' }}>
+                                {(p.fee_percent ?? crm.fee)}%
+                              </span>
+                            </div>
+                          </React.Fragment>
+                        ))}
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                          <span className="font-sans text-xs font-semibold text-gray-500">Total Crédito</span>
                           <span className="font-sans text-xs font-bold" style={{ color: cardColor }}>{fmt(creditSummary?.grand_total || 0)}</span>
                         </div>
                       </>

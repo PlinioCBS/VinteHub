@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { CRM_CONFIG } from '../contexts/CRMContext.jsx';
@@ -17,6 +17,7 @@ function fmtShort(v) {
 }
 
 function Avatar({ user }) {
+  const api = useAPI();
   const initials = user.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
   if (user.photo_url) {
     return <img src={user.photo_url} className="w-12 h-12 rounded-xl object-cover" alt={user.name} />;
@@ -70,7 +71,7 @@ function EmployeeCard({ emp }) {
         </div>
         <div className="text-right">
           <p className="font-sans text-xs text-gray-400 mb-0.5">Total do mês</p>
-          <p className="font-serif font-bold text-xl" style={{ color: '#355641' }}>{fmt(emp.total_monthly)}</p>
+          <p className="font-serif font-bold text-xl" style={{ color: 'var(--text-primary)' }}>{fmt(emp.total_monthly)}</p>
         </div>
         <svg
           className="w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0"
@@ -101,13 +102,13 @@ function EmployeeCard({ emp }) {
                     >
                       <span className="text-lg">{cfg.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <span className="font-sans text-sm font-medium" style={{ color: cfg.color }}>{cfg.label}</span>
+                        <span className="font-sans text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{cfg.label}</span>
                         <span className="font-sans text-xs text-gray-400 ml-2">
                           {fmtShort(revenue)} {crm === 'investimento' ? 'AUM' : 'Produção'}
                         </span>
                       </div>
                       <span className="font-sans text-xs text-gray-400 mx-2">{pct}%</span>
-                      <span className="font-serif text-sm font-bold" style={{ color: cfg.color }}>{fmt(earned)}</span>
+                      <span className="font-serif text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmt(earned)}</span>
                     </div>
                   );
                 })}
@@ -122,9 +123,9 @@ function EmployeeCard({ emp }) {
                 <p className="font-sans text-xs text-gray-400 mb-1">Salário</p>
                 <p className="font-serif font-bold text-gray-800">{fmt(emp.base_salary)}</p>
               </div>
-              <div className="text-center p-3 rounded-xl" style={{ backgroundColor: '#f0f4f1' }}>
+              <div className="text-center p-3 rounded-xl" style={{ backgroundColor: 'rgba(53,86,65,0.08)' }}>
                 <p className="font-sans text-xs text-gray-400 mb-1">Comissão CRM</p>
-                <p className="font-serif font-bold" style={{ color: '#355641' }}>{fmt(emp.total_commission)}</p>
+                <p className="font-serif font-bold" style={{ color: 'var(--text-primary)' }}>{fmt(emp.total_commission)}</p>
               </div>
             </div>
           </div>
@@ -174,7 +175,7 @@ function PdfImportPanel() {
   return (
     <div className="mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3" style={{ backgroundColor: '#faf9ff' }}>
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3" style={{ backgroundColor: 'rgba(124,58,237,0.04)' }}>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: '#7c3aed15' }}>📄</div>
         <div>
           <h3 className="font-serif font-bold text-gray-900">Importar Extrato PDF</h3>
@@ -187,7 +188,7 @@ function PdfImportPanel() {
         <div
           onClick={() => fileRef.current?.click()}
           className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-purple-300"
-          style={{ borderColor: file ? '#7c3aed' : '#e5e7eb', backgroundColor: file ? '#f5f3ff' : '#fafafa' }}
+          style={{ borderColor: file ? '#7c3aed' : '#e5e7eb', backgroundColor: file ? 'rgba(124,58,237,0.08)' : 'var(--bg-page)' }}
         >
           <input ref={fileRef} type="file" accept=".pdf" className="hidden"
             onChange={e => { setFile(e.target.files[0]); setResult(null); setError(''); }} />
@@ -225,8 +226,8 @@ function PdfImportPanel() {
             {/* Resumo geral */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Contratos lidos', value: result.extracted_count, color: '#355641', suffix: '' },
-                { label: 'Cruzados', value: result.matched_count, color: '#7c3aed', suffix: '' },
+                { label: 'Contratos lidos', value: result.extracted_count, color: 'var(--text-primary)', suffix: '' },
+                { label: 'Cruzados', value: result.matched_count, color: 'var(--text-primary)', suffix: '' },
                 { label: 'Não encontrados', value: result.unmatched_count, color: '#f97316', suffix: '' },
                 { label: 'Imposto (12%)', value: result.totals.tax, color: '#dc2626', isCurrency: true },
               ].map((s, i) => (
@@ -241,15 +242,15 @@ function PdfImportPanel() {
 
             {/* Totais financeiros */}
             <div className="rounded-2xl overflow-hidden border border-gray-100">
-              <div className="px-4 py-3 border-b border-gray-100" style={{ backgroundColor: '#f5f3ff' }}>
-                <p className="font-sans text-xs font-bold uppercase tracking-wider" style={{ color: '#7c3aed' }}>Resumo Financeiro</p>
+              <div className="px-4 py-3 border-b border-gray-100" style={{ backgroundColor: 'rgba(124,58,237,0.08)' }}>
+                <p className="font-sans text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>Resumo Financeiro</p>
               </div>
               <div className="divide-y divide-gray-50">
                 {[
-                  { label: 'Total Bruto (PDF)', value: result.totals.raw, color: '#353535' },
+                  { label: 'Total Bruto (PDF)', value: result.totals.raw, color: 'var(--text-primary)' },
                   { label: `Desconto Imposto (${(result.tax_rate * 100).toFixed(0)}%)`, value: -result.totals.tax, color: '#dc2626' },
-                  { label: 'Líquido após imposto', value: result.totals.net, color: '#355641' },
-                  { label: 'Total Comissões Funcionários', value: result.totals.employee_commission, color: '#7c3aed', bold: true },
+                  { label: 'Líquido após imposto', value: result.totals.net, color: 'var(--text-primary)' },
+                  { label: 'Total Comissões Consultores', value: result.totals.employee_commission, color: 'var(--text-primary)', bold: true },
                 ].map((row, i) => (
                   <div key={i} className="flex justify-between items-center px-4 py-3">
                     <span className="font-sans text-sm text-gray-600">{row.label}</span>
@@ -264,11 +265,11 @@ function PdfImportPanel() {
             {/* Por funcionário */}
             {result.by_employee.length > 0 && (
               <div>
-                <p className="font-sans text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Comissão por Funcionário</p>
+                <p className="font-sans text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Comissão por Consultor</p>
                 <div className="space-y-3">
                   {result.by_employee.map((emp, i) => (
                     <div key={i} className="rounded-xl border border-gray-100 overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#f5f3ff' }}>
+                      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: 'rgba(124,58,237,0.08)' }}>
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full flex items-center justify-center font-serif font-bold text-sm text-white flex-shrink-0" style={{ backgroundColor: '#7c3aed' }}>
                             {emp.employee_name?.[0]?.toUpperCase() || '?'}
@@ -276,7 +277,7 @@ function PdfImportPanel() {
                           <span className="font-sans text-sm font-semibold text-gray-800">{emp.employee_name}</span>
                           <span className="font-sans text-xs text-gray-400">({emp.items.length} contrato{emp.items.length !== 1 ? 's' : ''})</span>
                         </div>
-                        <span className="font-serif font-bold text-lg" style={{ color: '#7c3aed' }}>{fmt(emp.total_commission)}</span>
+                        <span className="font-serif font-bold text-lg" style={{ color: 'var(--text-primary)' }}>{fmt(emp.total_commission)}</span>
                       </div>
                       <div className="divide-y divide-gray-50">
                         {emp.items.map((item, j) => (
@@ -289,7 +290,7 @@ function PdfImportPanel() {
                             </div>
                             <div className="text-right flex-shrink-0">
                               <span className="text-gray-500 line-through mr-2">{fmt(item.raw_commission)}</span>
-                              <span className="font-semibold" style={{ color: '#7c3aed' }}>{fmt(item.employee_commission)}</span>
+                              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(item.employee_commission)}</span>
                               <span className="text-gray-400 ml-1">({item.employee_commission_pct}%)</span>
                             </div>
                           </div>
@@ -325,6 +326,121 @@ function PdfImportPanel() {
   );
 }
 
+// ─── Modal de Configurações Financeiras (Master) ─────────────────────────────
+function FinanceiroSettingsModal({ open, onClose }) {
+  const [settings, setSettings] = useState({
+    fee_percent_investimento: 0.55, fee_percent_credito: 0.55,
+    fee_percent_cambio: 0.55, fee_percent_seguro: 0.55, tax_rate: 0.12,
+  });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    api.getProductCatalogSettings().then(data => {
+      setSettings(s => ({ ...s, ...data }));
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [open]);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.updateProductCatalogSettings(settings);
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const CRM_FEES = [
+    { key: 'fee_percent_investimento', label: '📈 Investimento', color: '#355641' },
+    { key: 'fee_percent_credito', label: '💳 Crédito', color: '#7c3aed' },
+    { key: 'fee_percent_cambio', label: '💱 Câmbio', color: '#7c3aed' },
+    { key: 'fee_percent_seguro', label: '🛡️ Seguro', color: '#10b981' },
+  ];
+
+  const Modal = ({ open: o, onClose: oc, title, children }) => {
+    if (!o) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="font-serif font-bold text-lg text-gray-900">{title}</h2>
+            <button onClick={oc} className="text-gray-400 hover:text-gray-600">✕</button>
+          </div>
+          <div className="p-6">{children}</div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="⚙️ Configurações Financeiras">
+      {loading ? (
+        <div className="space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-5">
+          <div>
+            <p className="font-sans text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">FEE por Vertical (%)</p>
+            <div className="space-y-2">
+              {CRM_FEES.map(({ key, label, color }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="font-sans text-sm font-medium flex-1" style={{ color }}>{label}</span>
+                  <div className="relative w-28">
+                    <input
+                      type="number" step="0.01" min="0" max="100"
+                      value={settings[key] ?? 0.55}
+                      onChange={e => setSettings(s => ({ ...s, [key]: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-3 pr-7 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none text-right transition-all"
+                      style={{ color: 'var(--text-primary)' }}
+                      onFocus={e => { e.target.style.borderColor = color; e.target.style.boxShadow = `0 0 0 3px ${color}15`; }}
+                      onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-sans text-xs text-gray-400">%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <p className="font-sans text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Imposto</p>
+            <div className="flex items-center gap-3">
+              <span className="font-sans text-sm font-medium flex-1" style={{ color: '#dc2626' }}>🧾 Alíquota de Imposto</span>
+              <div className="relative w-28">
+                <input
+                  type="number" step="0.01" min="0" max="100"
+                  value={((settings.tax_rate ?? 0.12) * 100).toFixed(2)}
+                  onChange={e => setSettings(s => ({ ...s, tax_rate: (parseFloat(e.target.value) || 0) / 100 }))}
+                  className="w-full px-3 pr-7 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none text-right transition-all"
+                  style={{ color: 'var(--text-primary)' }}
+                  onFocus={e => { e.target.style.borderColor = '#dc2626'; e.target.style.boxShadow = '0 0 0 3px #dc262615'; }}
+                  onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-sans text-xs text-gray-400">%</span>
+              </div>
+            </div>
+            <p className="font-sans text-xs text-gray-400 mt-1">Aplicado no cálculo do extrato PDF</p>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 font-sans text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">Cancelar</button>
+            <button type="submit" disabled={saving}
+              className="px-6 py-2 rounded-xl font-sans text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-all"
+              style={{ backgroundColor: '#355641' }}>
+              {saving ? 'Salvando...' : 'Salvar configurações'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 export default function Financeiro() {
   const { isMaster } = useAuth();
   const navigate = useNavigate();
@@ -334,6 +450,7 @@ export default function Financeiro() {
   const [year, setYear] = useState(now.getFullYear());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [settingsModal, setSettingsModal] = useState(false);
 
   useEffect(() => {
     if (!isMaster) { navigate('/'); return; }
@@ -363,11 +480,19 @@ export default function Financeiro() {
           <p className="font-sans text-sm text-gray-400 mt-1">Visão consolidada de remuneração da equipe</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSettingsModal(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+            title="Configurações financeiras"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Configurações
+          </button>
           <select
             value={month}
             onChange={e => setMonth(parseInt(e.target.value))}
             className="px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none"
-            style={{ color: '#111827' }}
+            style={{ color: 'var(--text-primary)' }}
           >
             {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
           </select>
@@ -375,7 +500,7 @@ export default function Financeiro() {
             value={year}
             onChange={e => setYear(parseInt(e.target.value))}
             className="px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none"
-            style={{ color: '#111827' }}
+            style={{ color: 'var(--text-primary)' }}
           >
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -395,7 +520,7 @@ export default function Financeiro() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <SummaryCard label="Total Folha" value={data.totals.total_salaries} icon="👥" color="#355641" />
             <SummaryCard label="Comissão CRM" value={data.totals.total_crm_commissions} icon="📈" color="#7c3aed" />
-            <SummaryCard label="Total Geral" value={data.totals.grand_total} icon="💵" color="#10b981" />
+            <SummaryCard label="Faturamento" value={data.totals.grand_total} icon="💵" color="#10b981" />
           </div>
 
           {/* Employee cards */}
@@ -416,11 +541,11 @@ export default function Financeiro() {
             <div>
               <p className="font-sans text-white/70 text-sm">Total da folha —</p>
               <p className="font-sans text-white/70 text-xs mt-0.5">
-                {MONTHS.find(m => m.v === month)?.l} {year} · {data.employees.length} funcionário{data.employees.length !== 1 ? 's' : ''}
+                {MONTHS.find(m => m.v === month)?.l} {year} · {data.employees.length} consultor{data.employees.length !== 1 ? 'es' : ''}
               </p>
             </div>
             <div className="text-right">
-              <p className="font-sans text-white/60 text-xs uppercase tracking-wider mb-1">Total Geral</p>
+              <p className="font-sans text-white/60 text-xs uppercase tracking-wider mb-1">Faturamento</p>
               <p className="font-serif font-bold text-3xl text-white">{fmt(data.totals.grand_total)}</p>
             </div>
           </div>
@@ -430,6 +555,8 @@ export default function Financeiro() {
           <p className="font-sans text-sm">Erro ao carregar dados financeiros</p>
         </div>
       )}
+
+      <FinanceiroSettingsModal open={settingsModal} onClose={() => setSettingsModal(false)} />
     </div>
   );
 }

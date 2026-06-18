@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import api from '../api.js';
+import React, { useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid } from 'recharts';
+import useAPI from '../hooks/useAPI.js';
+import { useDashboardStats, useClientsGoal, useClientsRevenue, useClients } from '../hooks/useConvexData.js';
 import InlineField from '../components/InlineField.jsx';
 import { useCRM } from '../contexts/CRMContext.jsx';
 
@@ -48,19 +49,18 @@ function MetricCard({ label, value, sub, stripe }) {
   );
 }
 
-function CreditCard({ icon, title, totalCredit, clients, products, accentColor }) {
+function CreditCard({ title, totalCredit, clients, products, accentColor }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="h-1" style={{ backgroundColor: accentColor }} />
       <div className="p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">{icon}</span>
-          <span className="font-serif font-bold text-base" style={{ color: accentColor }}>{title}</span>
+        <div className="flex items-center mb-4">
+          <span className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>{title}</span>
         </div>
         <div className="space-y-2">
           <div>
             <p className="font-sans text-xs text-gray-500 mb-0.5">Volume Total</p>
-            <p className="font-serif text-2xl font-bold" style={{ color: accentColor }}>{fmtShort(totalCredit)}</p>
+            <p className="font-serif text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{fmtShort(totalCredit)}</p>
           </div>
           <div className="flex gap-4 pt-2 border-t border-gray-100">
             <div>
@@ -79,6 +79,7 @@ function CreditCard({ icon, title, totalCredit, clients, products, accentColor }
 }
 
 function CreditDashboard() {
+  const api = useAPI();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -121,7 +122,6 @@ function CreditDashboard() {
       {/* Top row: 4 product type cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <CreditCard
-          icon="🏛️"
           title="Porto Seguro Bank"
           totalCredit={porto.total_credit}
           clients={porto.clients}
@@ -129,7 +129,6 @@ function CreditDashboard() {
           accentColor="#7c3aed"
         />
         <CreditCard
-          icon="🏦"
           title="BancorBras"
           totalCredit={bancorbras.total_credit}
           clients={bancorbras.clients}
@@ -137,7 +136,6 @@ function CreditDashboard() {
           accentColor="#4f46e5"
         />
         <CreditCard
-          icon="📋"
           title="Carta Contemplada"
           totalCredit={carta.total_credit}
           clients={carta.clients}
@@ -145,7 +143,6 @@ function CreditDashboard() {
           accentColor="#0891b2"
         />
         <CreditCard
-          icon="🏠"
           title="Financiamento"
           totalCredit={financiamento.total_credit}
           clients={financiamento.clients}
@@ -158,7 +155,7 @@ function CreditDashboard() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <p className="font-sans text-sm text-gray-500 mb-2">Total de Crédito Intermediado</p>
-          <p className="font-serif text-4xl font-bold" style={{ color: '#7c3aed' }}>
+          <p className="font-serif text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
             {fmtShort(data?.grand_total || 0)}
           </p>
           <p className="font-sans text-xs text-gray-400 mt-2">Soma de todos os tipos de produto</p>
@@ -171,7 +168,7 @@ function CreditDashboard() {
             </div>
             <div>
               <p className="font-sans text-xs text-gray-500 mb-1">Produtos Cadastrados</p>
-              <p className="font-serif text-3xl font-bold" style={{ color: '#7c3aed' }}>{data?.total_products || 0}</p>
+              <p className="font-serif text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>{data?.total_products || 0}</p>
             </div>
             <div className="col-span-2 pt-2 border-t border-gray-100">
               <div className="flex justify-between text-xs">
@@ -214,13 +211,13 @@ function CreditDashboard() {
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                         style={{
-                          backgroundColor: row.product_type === 'consorcio_porto' ? '#f5f3ff' : row.product_type === 'consorcio_bancorbras' ? '#eef2ff' : '#f9fafb',
-                          color: row.product_type === 'consorcio_porto' ? '#7c3aed' : row.product_type === 'consorcio_bancorbras' ? '#4f46e5' : '#6b7280'
+                          backgroundColor: row.product_type === 'consorcio_porto' ? 'rgba(124,58,237,0.08)' : row.product_type === 'consorcio_bancorbras' ? 'rgba(79,70,229,0.08)' : 'var(--bg-page)',
+                          color: 'var(--text-muted)'
                         }}>
                         {PRODUCT_LABELS[row.product_type] || row.product_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-semibold" style={{ color: '#7c3aed' }}>{fmtShort(row.credit_value)}</td>
+                    <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtShort(row.credit_value)}</td>
                     <td className="px-4 py-3 text-gray-600">{row.contract_number || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{row.group_number || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{row.quota_number || '—'}</td>
@@ -238,44 +235,412 @@ function CreditDashboard() {
   );
 }
 
-export default function Dashboard() {
-  const { activeCRM } = useCRM();
-  const [stats, setStats] = useState(null);
-  const [goal, setGoal] = useState(null);
-  const [revenue, setRevenue] = useState(null);
-  const [loading, setLoading] = useState(true);
+// ─── Câmbio Dashboard ─────────────────────────────────────────────────────────
+const CURRENCIES = [
+  { key: 'USDBRL', name: 'Dólar',          symbol: '$',  flag: '🇺🇸', color: '#0f766e', bg: '#f0fdfa' },
+  { key: 'EURBRL', name: 'Euro',           symbol: '€',  flag: '🇪🇺', color: '#0f766e', bg: '#f0fdfa' },
+  { key: 'GBPBRL', name: 'Libra Esterlina', symbol: '£', flag: '🇬🇧', color: '#0f766e', bg: '#f0fdfa' },
+  { key: 'CHFBRL', name: 'Franco Suíço',   symbol: '₣',  flag: '🇨🇭', color: '#0f766e', bg: '#f0fdfa' },
+];
 
-  useEffect(() => { load(); }, []);
+const PERIODS = ['1D','5D','1M','6M','YTD','1Y'];
 
-  async function load() {
+function periodToDays(period) {
+  if (period === '1D')  return 2;
+  if (period === '5D')  return 5;
+  if (period === '1M')  return 30;
+  if (period === '6M')  return 180;
+  if (period === 'YTD') {
+    const jan1 = new Date(new Date().getFullYear(), 0, 1);
+    return Math.ceil((Date.now() - jan1) / 86400000) + 1;
+  }
+  if (period === '1Y')  return 365;
+  if (period === '5Y')  return 1825;
+  return 3650; // MAX
+}
+
+const _MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function fmtAxisDate(ts, period) {
+  const d = new Date(ts);
+  if (period === '5Y' || period === 'MAX' || period === '1Y' || period === '6M' || period === 'YTD') {
+    return _MONTHS[d.getMonth()] + '/' + String(d.getFullYear()).slice(2);
+  }
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function CurrencyChart({ currency }) {
+  const [period, setPeriod] = useState('1M');
+  const [chartData, setChartData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartError, setChartError] = useState(null);
+
+  const histPair = currency.key.replace('BRL', '-BRL'); // USDBRL → USD-BRL
+
+  const fetchHistory = useCallback(async () => {
+    setChartLoading(true);
+    setChartError(null);
     try {
-      const [s, g, r] = await Promise.all([
-        api.getDashboardStats(),
-        api.getClientsGoal(),
-        api.getClientsRevenue()
-      ]);
-      setStats(s);
-      setGoal(g);
-      setRevenue(r);
+      const days = periodToDays(period);
+      const res = await fetch(
+        `https://economia.awesomeapi.com.br/json/daily/${histPair}/${days}`
+      );
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const raw = await res.json();
+      if (!Array.isArray(raw) || raw.length === 0) throw new Error('Sem dados');
+
+      const parsed = raw
+        .map(d => ({
+          ts: parseInt(d.timestamp) * 1000,
+          value: parseFloat(d.bid),
+          high: parseFloat(d.high),
+          low: parseFloat(d.low),
+        }))
+        .sort((a, b) => a.ts - b.ts);
+
+      setChartData(parsed);
     } catch (e) {
-      console.error(e);
+      setChartError('Não foi possível carregar o histórico');
+    } finally {
+      setChartLoading(false);
+    }
+  }, [period, histPair]);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const min = chartData.length ? Math.min(...chartData.map(d => d.low))  * 0.999 : 'auto';
+  const max = chartData.length ? Math.max(...chartData.map(d => d.high)) * 1.001 : 'auto';
+  const first = chartData[0]?.value;
+  const last  = chartData[chartData.length - 1]?.value;
+  const trending = last != null && first != null ? (last >= first ? 'up' : 'down') : 'up';
+  const lineColor = trending === 'up' ? '#16a34a' : '#dc2626';
+
+  const tickCount = period === '1D' ? 4 : period === '5D' ? 5 : 6;
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2 text-xs font-sans">
+        <p className="text-gray-500 mb-1">{new Date(d.ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+        <p className="font-bold" style={{ color: 'var(--text-primary)' }}>R$ {d.value.toFixed(4)}</p>
+        <p className="text-emerald-600">↑ R$ {d.high.toFixed(4)}</p>
+        <p className="text-red-500">↓ R$ {d.low.toFixed(4)}</p>
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="h-1 w-full" style={{ backgroundColor: currency.color }} />
+      <div className="px-6 pt-5 pb-4">
+        {/* Chart header */}
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">{currency.flag}</span>
+            <div>
+              <p className="font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                {currency.name} / Real Brasileiro
+              </p>
+              <p className="font-mono text-xs text-gray-400">{currency.key.replace('BRL','')} / BRL · histórico</p>
+            </div>
+          </div>
+          {/* Period selector */}
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            {PERIODS.map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className="px-2.5 py-1.5 rounded-lg font-sans text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: period === p ? currency.color : 'transparent',
+                  color: period === p ? 'white' : '#6b7280',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chart body */}
+        {chartLoading ? (
+          <div className="h-52 flex items-center justify-center gap-3">
+            <div className="w-5 h-5 border-2 rounded-full animate-spin"
+              style={{ borderColor: currency.color + '30', borderTopColor: currency.color }} />
+            <span className="font-sans text-sm text-gray-400">Carregando histórico...</span>
+          </div>
+        ) : chartError ? (
+          <div className="h-52 flex items-center justify-center">
+            <p className="font-sans text-sm text-red-400">{chartError}</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`grad-${currency.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={lineColor} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={lineColor} stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis
+                dataKey="ts"
+                tickCount={tickCount}
+                tickFormatter={ts => fmtAxisDate(ts, period)}
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[min, max]}
+                tickFormatter={v => `R$${v.toFixed(2)}`}
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                width={62}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={lineColor}
+                strokeWidth={2}
+                fill={`url(#grad-${currency.key})`}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CurrencyCard({ currency, data, loading, active, onToggle }) {
+  const bid  = data ? parseFloat(data.bid)  : null;
+  const high = data ? parseFloat(data.high) : null;
+  const low  = data ? parseFloat(data.low)  : null;
+  const pct  = data ? parseFloat(data.pctChange) : null;
+  const up   = pct >= 0;
+  const fmtR = (v) => v != null ? `R$ ${v.toFixed(4)}` : '—';
+
+  return (
+    <div
+      className="bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200"
+      style={{ borderColor: active ? currency.color + '60' : '#f3f4f6', boxShadow: active ? `0 0 0 2px ${currency.color}30` : undefined }}
+    >
+      <div className="h-1.5 w-full" style={{ backgroundColor: currency.color }} />
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 flex-shrink-0 rounded-xl flex items-center justify-center text-2xl"
+              style={{ backgroundColor: currency.bg }}>
+              {currency.flag}
+            </div>
+            <div className="min-w-0">
+              <p className="font-serif font-bold text-base leading-tight" style={{ color: 'var(--text-primary)' }}>
+                {currency.name}
+              </p>
+              <p className="font-mono text-xs font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {currency.key.replace('BRL', '')} / BRL
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            {!loading && pct != null && (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap"
+                style={{
+                  backgroundColor: up ? '#dcfce7' : '#fee2e2',
+                  color: up ? '#16a34a' : '#dc2626',
+                }}>
+                {up ? '▲' : '▼'} {Math.abs(pct).toFixed(2)}%
+              </div>
+            )}
+            {/* Chart toggle arrow */}
+            <button
+              onClick={onToggle}
+              title={active ? 'Ocultar gráfico' : 'Ver gráfico'}
+              className="flex items-center justify-center w-7 h-7 rounded-lg transition-all hover:opacity-80"
+              style={{ backgroundColor: active ? currency.color : currency.bg }}
+            >
+              <svg
+                className="w-3.5 h-3.5 transition-transform duration-200"
+                style={{ color: active ? 'white' : currency.color, transform: active ? 'rotate(180deg)' : 'none' }}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Main rate */}
+        {loading ? (
+          <div className="h-10 bg-gray-100 rounded-xl animate-pulse mb-4" />
+        ) : (
+          <div className="mb-4">
+            <p className="font-sans text-xs text-gray-400 mb-0.5">Cotação Atual</p>
+            <p className="font-serif font-bold" style={{ fontSize: '2.2rem', lineHeight: 1, color: 'var(--text-primary)' }}>
+              {bid != null ? `R$ ${bid.toFixed(4)}` : '—'}
+            </p>
+            <p className="font-sans text-xs text-gray-400 mt-1">
+              {currency.symbol} 1,00 = {bid != null ? `R$ ${bid.toFixed(4)}` : '—'}
+            </p>
+          </div>
+        )}
+
+        {/* High / Low */}
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+          <div>
+            <p className="font-sans text-xs text-gray-400 mb-0.5">Mínima</p>
+            {loading
+              ? <div className="h-5 bg-gray-100 rounded animate-pulse" />
+              : <p className="font-sans text-sm font-semibold text-red-500">{fmtR(low)}</p>
+            }
+          </div>
+          <div>
+            <p className="font-sans text-xs text-gray-400 mb-0.5">Máxima</p>
+            {loading
+              ? <div className="h-5 bg-gray-100 rounded animate-pulse" />
+              : <p className="font-sans text-sm font-semibold text-emerald-600">{fmtR(high)}</p>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CambioDashboard() {
+  const [rates, setRates] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [error, setError] = useState(null);
+  const [selectedKey, setSelectedKey] = useState(null);
+
+  async function fetchRates() {
+    try {
+      const res = await fetch(
+        'https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,CHF-BRL'
+      );
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      setRates(data);
+      setLastUpdate(new Date());
+      setError(null);
+    } catch (e) {
+      setError('Não foi possível carregar as cotações');
     } finally {
       setLoading(false);
     }
   }
 
+  useEffect(() => {
+    fetchRates();
+    const id = setInterval(fetchRates, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fmtTime = (d) => d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  const selectedCurrency = CURRENCIES.find(c => c.key === selectedKey);
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 rounded-full bg-blue-600" />
+          <div>
+            <h1 className="font-serif text-2xl text-charcoal">Dashboard — Câmbio</h1>
+            <p className="text-sm text-charcoal/50 font-sans mt-0.5">Cotações do mercado em tempo real</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {error && (
+            <span className="font-sans text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">
+              {error}
+            </span>
+          )}
+          {lastUpdate && !error && (
+            <span className="font-sans text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              Atualizado às {fmtTime(lastUpdate)}
+            </span>
+          )}
+          <button
+            onClick={fetchRates}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-sans text-sm font-semibold text-white hover:opacity-90 transition-all"
+            style={{ backgroundColor: '#2563eb' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Atualizar
+          </button>
+        </div>
+      </div>
+
+      {/* 4 Currency cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+        {CURRENCIES.map(cur => (
+          <CurrencyCard
+            key={cur.key}
+            currency={cur}
+            data={rates?.[cur.key]}
+            loading={loading}
+            active={selectedKey === cur.key}
+            onToggle={() => setSelectedKey(prev => prev === cur.key ? null : cur.key)}
+          />
+        ))}
+      </div>
+
+      {/* Chart panel — full width, below the cards */}
+      {selectedCurrency && (
+        <div className="mt-5">
+          <CurrencyChart key={selectedKey} currency={selectedCurrency} />
+        </div>
+      )}
+
+      <p className="font-sans text-xs text-gray-400 mt-5 text-center">
+        Fonte: AwesomeAPI · Dados do mercado financeiro · Atualização automática a cada 60s
+      </p>
+    </div>
+  );
+}
+
+const fmtUSD = (v) => {
+  if (!v) return '$ 0';
+  if (v >= 1e9) return `$ ${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `$ ${(v / 1e6).toFixed(2)}M`;
+  if (v >= 1e3) return `$ ${(v / 1e3).toFixed(1)}K`;
+  return '$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+export default function Dashboard() {
+  const api = useAPI();
+  const { activeCRM } = useCRM();
+  const stats = useDashboardStats();
+  const goal = useClientsGoal();
+  const revenue = useClientsRevenue();
+  const { clients: clientsList, totalAUM } = useClients();
+  const clientsData = { clients: clientsList, totalAUM };
+  const loading = stats === undefined;
+
+  const aumUSD = {
+    total: (clientsList ?? []).reduce((s, c) => s + (c.aumUsd ?? 0), 0),
+    count: (clientsList ?? []).filter(c => (c.aumUsd ?? 0) > 0).length,
+  };
+
   async function saveGoal(val) {
     try {
       await api.updateClientsGoal(parseFloat(val));
-      const g = await api.getClientsGoal();
-      setGoal(g);
     } catch (e) { console.error(e); }
   }
 
-  // Show Crédito-specific dashboard
-  if (activeCRM === 'credito') {
-    return <CreditDashboard />;
-  }
+  if (activeCRM === 'cambio') return <CambioDashboard />;
+  if (activeCRM === 'credito') return <CreditDashboard />;
 
   if (loading) return (
     <div className="p-8">
@@ -285,18 +650,40 @@ export default function Dashboard() {
     </div>
   );
 
-  const dealsByStage = (stats?.dealsByStage || []).map(d => ({
-    name: STAGE_LABELS[d.stage] || d.stage,
-    count: d.count,
-    total: d.total || 0
+  // Todas as etapas do pipeline, sempre presentes mesmo se vazias
+  const ALL_PIPELINE_STAGES = [
+    { stage: 'prospecting', name: 'Prospecção' },
+    { stage: 'qualificacao', name: 'Qualificação' },
+    { stage: 'proposta', name: 'Proposta' },
+    { stage: 'negociacao', name: 'Negociação' },
+    { stage: 'fechado_ganho', name: 'Ganho' },
+    { stage: 'cliente_ativo', name: 'Cliente Ativo' },
+  ];
+  const stageMap = {};
+  (stats?.dealsByStage || []).forEach(d => {
+    stageMap[d.stage] = { count: parseInt(d.count) || 0, total: parseFloat(d.total) || 0 };
+  });
+  const dealsByStage = ALL_PIPELINE_STAGES.map(s => ({
+    name: s.name,
+    count: stageMap[s.stage]?.count || 0,
+    total: stageMap[s.stage]?.total || 0,
   }));
 
   const contactsByStatus = (stats?.contactsByStatus || []).map(d => ({
     name: STATUS_LABELS[d.status] || d.status,
-    value: d.count
-  }));
+    value: parseInt(d.count) || 0
+  })).filter(d => d.value > 0);
 
-  const aumData = (stats?.aumByClient || []).map(c => ({ name: c.name, value: c.aum }));
+  // Fallback: build contactsByStatus from clientsData if stats is empty
+  const contactsChartData = contactsByStatus.length > 0
+    ? contactsByStatus
+    : clientsData?.clients?.length > 0
+      ? [{ name: 'Cliente', value: clientsData.clients.length }]
+      : [];
+
+  const aumData = (stats?.aumByClient || clientsData?.clients || [])
+    .map(c => ({ name: c.name, value: parseFloat(c.aum) || 0 }))
+    .filter(c => c.value > 0);
 
   return (
     <div className="p-8">
@@ -306,11 +693,12 @@ export default function Dashboard() {
       </div>
 
       {/* Revenue metrics */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <MetricCard label="Receita Anual" value={fmtCur(revenue?.totalAnnual)} sub={`Fee ${revenue?.fee || 0.55}% a.a.`} stripe="#355641" />
+      <div className="grid grid-cols-5 gap-4 mb-6">
+        <MetricCard label="Receita Anual" value={fmtCur(revenue?.totalAnnual)} sub={`Fee ${revenue?.fee || 0.55}% `} stripe="#355641" />
         <MetricCard label="Receita Mensal" value={fmtCur(revenue?.totalMonthly)} sub="Anual ÷ 12" stripe="#dd7752" />
-        <MetricCard label="AUM Total" value={fmtCur(revenue?.totalAUM)} sub={`${revenue?.perClient?.length || 0} clientes`} stripe="#7A5137" />
-        <MetricCard label="Clientes Ativos" value={revenue?.perClient?.length || 0} sub="Status: cliente" stripe="#353535" />
+        <MetricCard label="AUM Total" value={fmtCur(revenue?.totalAUM ?? clientsData?.totalAUM)} sub={`${revenue?.perClient?.length ?? clientsData?.clients?.length ?? 0} clientes`} stripe="#7A5137" />
+        <MetricCard label="AUM Dólar" value={fmtUSD(aumUSD?.total ?? 0)} sub={aumUSD != null ? `${aumUSD.count} clientes USD` : 'Carteira USD'} stripe="#2563eb" />
+        <MetricCard label="Clientes Ativos" value={revenue?.perClient?.length ?? clientsData?.clients?.length ?? 0} sub="Status: cliente" stripe="#353535" />
       </div>
 
       {/* Captação Goals */}
@@ -345,10 +733,10 @@ export default function Dashboard() {
       {/* Operational KPIs */}
       <div className="grid grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Prospects', value: stats?.totalContacts, color: '#355641' },
-          { label: 'Novos Leads', value: stats?.newLeads, color: '#dd7752' },
-          { label: 'Negócios Abertos', value: stats?.openDeals, color: '#7A5137' },
-          { label: 'Negócios Ganhos', value: stats?.wonDeals, color: '#22c55e' },
+          { label: 'Prospects', value: stats?.newLeads, color: '#355641' },
+          { label: 'Em Negociação', value: stats?.openDeals, color: '#dd7752' },
+          { label: 'Clientes Ativos', value: clientsData?.clients?.length ?? 0, color: '#22c55e' },
+          { label: 'Negócios Ganhos', value: stats?.wonDeals, color: '#7A5137' },
           { label: 'Tarefas Pendentes', value: stats?.pendingTasks, color: stats?.overdueTasks > 0 ? '#ef4444' : '#353535' }
         ].map(kpi => (
           <div key={kpi.label} className="card p-4 flex items-center gap-3">
@@ -378,8 +766,8 @@ export default function Dashboard() {
           <p className="font-serif text-sm mb-4">Prospects por Status</p>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={contactsByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
-                {contactsByStatus.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              <Pie data={contactsChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
+                {contactsChartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
               <Tooltip />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
@@ -420,19 +808,29 @@ export default function Dashboard() {
         </div>
 
         <div className="card p-5">
-          <p className="font-serif text-sm mb-4">Distribuição AUM por Cliente</p>
+          <p className="font-serif text-sm mb-4">Ranking AUM por Cliente</p>
           {aumData.length === 0 ? (
             <p className="text-sm text-charcoal/40">Nenhum cliente com AUM</p>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={aumData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70}>
-                  {aumData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={v => fmtCur(v)} />
-                <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 220 }}>
+              {aumData.map((c, i) => {
+                const maxAum = aumData[0]?.value || 1;
+                const pct = Math.round((c.value / maxAum) * 100);
+                return (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-sans text-xs font-medium text-charcoal truncate flex-1 mr-2">
+                        <span className="text-charcoal/40 mr-1">#{i + 1}</span>{c.name}
+                      </span>
+                      <span className="font-sans text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtCur(c.value)}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-1">
+                      <div className="h-1 rounded-full" style={{ width: `${pct}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

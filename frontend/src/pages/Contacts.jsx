@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import api from '../api.js';
+import React, { useState, useEffect } from 'react';
+import useAPI from '../hooks/useAPI.js';
+import { useContacts } from '../hooks/useConvexData.js';
 import Modal from '../components/Modal.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import BriefingPanel from '../components/BriefingPanel.jsx';
 import CalendarWidget from '../components/CalendarWidget.jsx';
 import ImportModal from '../components/ImportModal.jsx';
+import CurrencyInput from '../components/CurrencyInput.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
+import { useCRM } from '../contexts/CRMContext.jsx';
 
 const STATUSES = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'cliente', 'inativo'];
 const STATUS_LABELS = {
@@ -17,8 +20,8 @@ const STATUS_COLORS = {
   negociacao: '#f97316', cliente: '#22c55e', inativo: '#ef4444'
 };
 const STATUS_BG = {
-  prospecting: '#f3f4f6', qualificacao: '#eff6ff', proposta: '#fefce8',
-  negociacao: '#fff7ed', cliente: '#f0fdf4', inativo: '#fef2f2'
+  prospecting: 'rgba(156,163,175,0.12)', qualificacao: 'rgba(59,130,246,0.08)', proposta: 'rgba(234,179,8,0.08)',
+  negociacao: 'rgba(249,115,22,0.08)', cliente: 'rgba(22,163,74,0.08)', inativo: 'rgba(220,38,38,0.08)'
 };
 
 const INVESTOR_PROFILES = [
@@ -74,7 +77,7 @@ function PhoneInput({ value, onChange }) {
       onChange={e => onChange(mask(e.target.value))}
       placeholder="(XX) XXXXX-XXXX"
       className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-      style={{ color: '#353535' }}
+      style={{ color: 'var(--text-primary)' }}
       onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
       onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
     />
@@ -103,8 +106,8 @@ function TextInput({ value, onChange, error, type = 'text', placeholder = '' }) 
       className="w-full px-3 py-2 rounded-xl border font-sans text-sm outline-none transition-all"
       style={{
         borderColor: error ? '#ef4444' : '#d9d9d6',
-        color: '#353535',
-        backgroundColor: '#fff'
+        color: 'var(--text-primary)',
+        backgroundColor: 'var(--bg-card)'
       }}
       onFocus={e => { e.target.style.borderColor = error ? '#ef4444' : '#355641'; e.target.style.boxShadow = `0 0 0 3px ${error ? '#ef444415' : '#35564115'}`; }}
       onBlur={e => { e.target.style.borderColor = error ? '#ef4444' : '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
@@ -113,6 +116,7 @@ function TextInput({ value, onChange, error, type = 'text', placeholder = '' }) 
 }
 
 function ContactFormModal({ open, onClose, initial, onSuccess }) {
+  const api = useAPI();
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
@@ -140,8 +144,8 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
     try {
       const payload = {
         ...form,
-        aum: form.aum ? parseFloat(form.aum) : 0,
-        monthly_income: form.monthly_income ? parseFloat(form.monthly_income) : null,
+        aum: form.aum ? Number(form.aum) : 0,
+        monthly_income: form.monthly_income ? Number(form.monthly_income) : null,
       };
       if (initial?.id) {
         await api.updateContact(initial.id, payload);
@@ -182,7 +186,7 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
               value={form.status}
               onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
@@ -191,19 +195,19 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
             <TextInput value={form.profession} onChange={v => setForm(f => ({ ...f, profession: v }))} />
           </FormField>
           <FormField label="Renda Mensal (R$)">
-            <TextInput type="number" value={form.monthly_income} onChange={v => setForm(f => ({ ...f, monthly_income: v }))} placeholder="0" />
+            <CurrencyInput value={form.monthly_income} onChange={v => setForm(f => ({ ...f, monthly_income: v }))} placeholder="R$ 0,00" />
           </FormField>
           {isCliente && (
             <>
               <FormField label="AUM (R$)">
-                <TextInput type="number" value={form.aum} onChange={v => setForm(f => ({ ...f, aum: v }))} placeholder="0" />
+                <CurrencyInput value={form.aum} onChange={v => setForm(f => ({ ...f, aum: v }))} placeholder="R$ 0,00" />
               </FormField>
               <FormField label="Perfil do Investidor">
                 <select
                   value={form.investor_profile}
                   onChange={e => setForm(f => ({ ...f, investor_profile: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-                  style={{ color: '#353535' }}
+                  style={{ color: 'var(--text-primary)' }}
                 >
                   <option value="">Não definido</option>
                   {INVESTOR_PROFILES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -218,7 +222,7 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
             value={form.notes}
             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none resize-none transition-all"
-            style={{ color: '#353535' }}
+            style={{ color: 'var(--text-primary)' }}
             onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
             onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
           />
@@ -244,9 +248,11 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
 }
 
 export default function Contacts() {
+  const api = useAPI();
   const { toast } = useToast();
-  const [contacts, setContacts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { activeCRM } = useCRM();
+  const allContacts = useContacts();
+  const loading = allContacts === undefined;
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [viewContact, setViewContact] = useState(null);
@@ -255,18 +261,18 @@ export default function Contacts() {
   const [showImport, setShowImport] = useState(false);
   const [advancing, setAdvancing] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = {};
-      if (search) params.search = search;
-      if (filterStatus) params.status = filterStatus;
-      const data = await api.getContacts(params);
-      setContacts(data);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search, filterStatus]);
-
-  useEffect(() => { load(); }, [load]);
+  // Filter client-side for real-time reactivity
+  const contacts = (allContacts ?? []).filter(c => {
+    if (c.status === 'cliente' && !filterStatus) return false;
+    if (filterStatus && c.status !== filterStatus) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      return (c.name ?? '').toLowerCase().includes(s) ||
+             (c.email ?? '').toLowerCase().includes(s) ||
+             (c.phone ?? '').includes(s);
+    }
+    return true;
+  });
 
   async function loadContact(id) {
     try {
@@ -281,8 +287,6 @@ export default function Contacts() {
     try {
       await api.advanceContact(id);
       toast.success('Contato avançado de etapa');
-      load();
-      if (viewContact?.id === id) loadContact(id);
     } catch (err) { toast.error(err.message); } finally { setAdvancing(null); }
   }
 
@@ -292,8 +296,7 @@ export default function Contacts() {
       await api.deleteContact(id);
       toast.success('Contato excluído');
       setConfirmDelete({ open: false, id: null, name: '' });
-      if (viewContact?.id === id) setViewContact(null);
-      load();
+      if (viewContact?._id === id) setViewContact(null);
     } catch (err) {
       toast.error(err.message || 'Erro ao excluir');
     }
@@ -308,17 +311,17 @@ export default function Contacts() {
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
   return (
-    <div className="p-8" style={{ backgroundColor: '#f5f4f2', minHeight: '100vh' }}>
+    <div className="p-8" style={{ backgroundColor: 'var(--bg-page)', minHeight: '100vh' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-serif font-bold text-2xl" style={{ color: '#353535' }}>Prospecção</h1>
-          <p className="font-sans text-sm mt-1" style={{ color: '#353535', opacity: 0.5 }}>{contacts.length} contatos</p>
+          <h1 className="font-serif font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>Prospecção</h1>
+          <p className="font-sans text-sm mt-1" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>{contacts.length} contatos</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setShowImport(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl border font-sans text-sm font-medium transition-all hover:bg-white"
-            style={{ borderColor: '#d9d9d6', color: '#353535' }}
+            style={{ borderColor: '#d9d9d6', color: 'var(--text-primary)' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
             Importar CSV
@@ -343,32 +346,33 @@ export default function Contacts() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por nome, e-mail, empresa..."
             className="pl-9 pr-4 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none w-72 bg-white"
-            style={{ color: '#353535' }}
+            style={{ color: 'var(--text-primary)' }}
           />
         </div>
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
           className="px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-          style={{ color: '#353535' }}
+          style={{ color: 'var(--text-primary)' }}
         >
-          <option value="">Todos os status</option>
-          {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+          <option value="">Todos (exceto Clientes)</option>
+          {STATUSES.filter(s => s !== 'cliente').map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+          <option value="cliente">Cliente</option>
         </select>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl border overflow-hidden shadow-sm" style={{ borderColor: '#d9d9d6' }}>
         <table className="w-full">
-          <thead style={{ backgroundColor: '#f5f4f2', borderBottom: `1px solid #d9d9d6` }}>
+          <thead style={{ backgroundColor: 'var(--bg-page)', borderBottom: `1px solid #d9d9d6` }}>
             <tr>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Nome</th>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Empresa</th>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Telefone</th>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Status</th>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>AUM</th>
-              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Cadastro</th>
-              <th className="text-right px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: '#353535', opacity: 0.5 }}>Ações</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Nome</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Empresa</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Telefone</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Status</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>AUM</th>
+              <th className="text-left px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Cadastro</th>
+              <th className="text-right px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -389,8 +393,13 @@ export default function Contacts() {
                 onClick={() => loadContact(c.id)}
               >
                 <td className="px-5 py-3">
-                  <p className="font-sans font-bold text-sm" style={{ color: '#353535' }}>{c.name}</p>
+                  <p className="font-sans font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{c.name}</p>
                   {c.email && <p className="font-sans text-xs text-gray-400">{c.email}</p>}
+                  {c.finder_name && (
+                    <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full font-sans text-xs font-semibold" style={{ backgroundColor: 'rgba(37,99,235,0.10)', color: '#2563eb' }}>
+                      🤝 {c.finder_name}
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 font-sans text-sm text-gray-600">{c.company || '—'}</td>
                 <td className="px-5 py-3 font-sans text-sm text-gray-600">{c.phone || '—'}</td>
@@ -409,7 +418,7 @@ export default function Contacts() {
                     )}
                   </div>
                 </td>
-                <td className="px-5 py-3 font-sans text-sm" style={{ color: c.aum ? '#355641' : '#9ca3af', fontWeight: c.aum ? 'bold' : 'normal' }}>
+                <td className="px-5 py-3 font-sans text-sm" style={{ color: c.aum ? 'var(--text-primary)' : 'var(--text-hint)', fontWeight: c.aum ? 'bold' : 'normal' }}>
                   {fmtAUM(c.aum)}
                 </td>
                 <td className="px-5 py-3 font-sans text-xs text-gray-400">{fmtDate(c.created_at)}</td>
@@ -442,14 +451,14 @@ export default function Contacts() {
         <Modal open={!!viewContact} onClose={() => setViewContact(null)} title={viewContact.name} size="lg">
           <div className="space-y-5">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-5 border-b border-gray-100">
-              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">E-mail</p><p className="font-sans text-sm" style={{ color: '#353535' }}>{viewContact.email || '—'}</p></div>
-              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Telefone</p><p className="font-sans text-sm" style={{ color: '#353535' }}>{viewContact.phone || '—'}</p></div>
-              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Empresa</p><p className="font-sans text-sm" style={{ color: '#353535' }}>{viewContact.company || '—'}</p></div>
+              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">E-mail</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{viewContact.email || '—'}</p></div>
+              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Telefone</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{viewContact.phone || '—'}</p></div>
+              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Empresa</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{viewContact.company || '—'}</p></div>
               <div>
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">AUM</p>
-                <p className="font-serif font-bold" style={{ color: '#355641' }}>{fmtAUM(viewContact.aum)}</p>
+                <p className="font-serif font-bold" style={{ color: 'var(--text-primary)' }}>{fmtAUM(viewContact.aum)}</p>
               </div>
-              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Perfil</p><p className="font-sans text-sm capitalize" style={{ color: '#353535' }}>{viewContact.investor_profile || '—'}</p></div>
+              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Perfil</p><p className="font-sans text-sm capitalize" style={{ color: 'var(--text-primary)' }}>{viewContact.investor_profile || '—'}</p></div>
               <div>
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
                 <div className="flex items-center gap-2">
@@ -457,8 +466,8 @@ export default function Contacts() {
                   <Badge status={viewContact.status} />
                 </div>
               </div>
-              {viewContact.profession && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Profissão</p><p className="font-sans text-sm" style={{ color: '#353535' }}>{viewContact.profession}</p></div>}
-              {viewContact.monthly_income && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Renda Mensal</p><p className="font-sans text-sm" style={{ color: '#353535' }}>{fmtAUM(viewContact.monthly_income)}</p></div>}
+              {viewContact.profession && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Profissão</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{viewContact.profession}</p></div>}
+              {viewContact.monthly_income && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Renda Mensal</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{fmtAUM(viewContact.monthly_income)}</p></div>}
             </div>
 
             {viewContact.deals?.length > 0 && (
@@ -466,11 +475,11 @@ export default function Contacts() {
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Negócios</p>
                 <div className="space-y-1">
                   {viewContact.deals.map(d => (
-                    <div key={d.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ backgroundColor: '#f5f4f2' }}>
-                      <span className="font-sans" style={{ color: '#353535' }}>{d.title}</span>
+                    <div key={d.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-page)' }}>
+                      <span className="font-sans" style={{ color: 'var(--text-primary)' }}>{d.title}</span>
                       <div className="flex items-center gap-3">
                         <span className="font-sans text-xs text-gray-400">{STATUS_LABELS[d.stage] || d.stage}</span>
-                        <span className="font-serif font-bold text-sm" style={{ color: '#355641' }}>{fmtAUM(d.value)}</span>
+                        <span className="font-serif font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{fmtAUM(d.value)}</span>
                       </div>
                     </div>
                   ))}

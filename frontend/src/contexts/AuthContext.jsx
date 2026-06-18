@@ -1,81 +1,59 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 
 const AuthContext = createContext(null);
 
-const BASE = '/api';
-
-async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('vinte_token');
-  const res = await fetch(`${BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers
-    },
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
-  }
-  return res.json();
-}
+const STORAGE_KEY = 'vinte_user';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const validate = useCallback(async () => {
-    const token = localStorage.getItem('vinte_token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+  const [user, setUser] = useState(() => {
     try {
-      const me = await apiFetch('/auth/me');
-      setUser(me);
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
     } catch {
-      localStorage.removeItem('vinte_token');
-      setUser(null);
-    } finally {
-      setLoading(false);
+      return null;
     }
-  }, []);
+  });
+  const [loading] = useState(false);
 
-  useEffect(() => {
-    validate();
-  }, [validate]);
+  const loginMutation = useMutation(api.auth.login);
+  const finderLoginMutation = useMutation(api.auth.finderLogin);
 
   const login = async (email, password) => {
-    const data = await apiFetch('/auth/login', {
-      method: 'POST',
-      body: { email, password }
-    });
-    localStorage.setItem('vinte_token', data.token);
-    setUser(data.user);
-    return data.user;
+    const result = await loginMutation({ email, password });
+    if (!result.success) throw new Error(result.error);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result.user));
+    setUser(result.user);
+    return result.user;
+  };
+
+  const finderLogin = async (email, password) => {
+    const result = await finderLoginMutation({ email, password });
+    if (!result.success) throw new Error(result.error);
+    const finderUser = { ...result.finder, role: 'finder' };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(finderUser));
+    setUser(finderUser);
+    return finderUser;
   };
 
   const logout = () => {
-    localStorage.removeItem('vinte_token');
+    localStorage.removeItem(STORAGE_KEY);
     setUser(null);
   };
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(() => {
     try {
-      const me = await apiFetch('/auth/me');
-      setUser(me);
-    } catch {
-      // silently ignore
-    }
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setUser(JSON.parse(stored));
+    } catch {}
   }, []);
 
   const isAuthenticated = !!user;
   const isMaster = user?.role === 'master';
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated, isMaster, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, finderLogin, logout, isAuthenticated, isMaster, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -90,7 +68,7 @@ export function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#f5f0e8' }}>
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: 'var(--bg-page)' }}>
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4"
             style={{ borderColor: '#355641', borderTopColor: 'transparent' }} />

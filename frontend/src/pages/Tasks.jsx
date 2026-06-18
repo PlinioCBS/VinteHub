@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import api from '../api.js';
+import React, { useState, useEffect } from 'react';
+import useAPI from '../hooks/useAPI.js';
+import { useTasks, useContacts } from '../hooks/useConvexData.js';
 import Modal from '../components/Modal.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
@@ -7,7 +8,7 @@ import { useToast } from '../contexts/ToastContext.jsx';
 const PRIORITIES = ['high', 'medium', 'low'];
 const PRIORITY_LABELS = { high: 'Alta', medium: 'Média', low: 'Baixa' };
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#eab308', low: '#355641' };
-const PRIORITY_BG = { high: '#fef2f2', medium: '#fefce8', low: '#f0fdf4' };
+const PRIORITY_BG = { high: 'rgba(220,38,38,0.08)', medium: 'rgba(234,179,8,0.08)', low: 'rgba(22,163,74,0.08)' };
 const STATUSES = ['pending', 'in_progress', 'completed'];
 const STATUS_LABELS = { pending: 'Pendente', in_progress: 'Em andamento', completed: 'Concluída' };
 
@@ -29,6 +30,7 @@ function PriorityBadge({ priority }) {
 }
 
 function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
+  const api = useAPI();
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
@@ -81,7 +83,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
 
   const inputStyle = (hasError) => ({
     borderColor: hasError ? '#ef4444' : '#d9d9d6',
-    color: '#353535'
+    color: 'var(--text-primary)'
   });
   const focusHandler = (e) => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; };
   const blurHandler = (hasError) => (e) => { e.target.style.borderColor = hasError ? '#ef4444' : '#d9d9d6'; e.target.style.boxShadow = 'none'; };
@@ -109,7 +111,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
             value={form.description}
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none resize-none transition-all"
-            style={{ color: '#353535' }}
+            style={{ color: 'var(--text-primary)' }}
             onFocus={focusHandler}
             onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
           />
@@ -122,7 +124,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.contact_id}
               onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               <option value="">Nenhum</option>
               {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -135,7 +137,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.due_date}
               onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
               onFocus={focusHandler}
               onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
             />
@@ -151,7 +153,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border font-sans text-xs font-medium transition-all"
                   style={{
                     borderColor: form.priority === p ? PRIORITY_COLORS[p] : '#d9d9d6',
-                    backgroundColor: form.priority === p ? PRIORITY_BG[p] : 'white',
+                    backgroundColor: form.priority === p ? PRIORITY_BG[p] : 'var(--bg-card)',
                     color: form.priority === p ? PRIORITY_COLORS[p] : '#9ca3af',
                   }}
                 >
@@ -167,7 +169,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.status}
               onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
@@ -193,10 +195,11 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
 }
 
 export default function Tasks() {
+  const api = useAPI();
   const { toast } = useToast();
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [contacts, setContacts] = useState([]);
+  const allTasks = useTasks();
+  const contacts = useContacts();
+  const loading = allTasks === undefined;
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [formModal, setFormModal] = useState({ open: false, task: null });
@@ -205,25 +208,17 @@ export default function Tasks() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = {};
-      if (filterStatus) params.status = filterStatus;
-      if (filterPriority) params.priority = filterPriority;
-      const data = await api.getTasks(params);
-      setTasks(data);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [filterStatus, filterPriority]);
-
-  useEffect(() => { load(); api.getContacts().then(setContacts).catch(() => {}); }, [load]);
+  const tasks = (allTasks ?? []).filter(t => {
+    if (filterStatus && t.status !== filterStatus) return false;
+    if (filterPriority && t.priority !== filterPriority) return false;
+    return true;
+  });
 
   async function handleToggle(task) {
-    setToggling(task.id);
+    setToggling(task._id);
     try {
       const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-      await api.updateTask(task.id, { ...task, status: newStatus });
-      load();
+      await api.updateTask(task._id, { status: newStatus });
     } catch (e) { console.error(e); } finally { setToggling(null); }
   }
 
@@ -232,7 +227,6 @@ export default function Tasks() {
       await api.deleteTask(confirmDelete.id);
       toast.success('Tarefa excluída');
       setConfirmDelete({ open: false, id: null, title: '' });
-      load();
     } catch (err) {
       toast.error(err.message || 'Erro ao excluir');
     }
@@ -249,11 +243,11 @@ export default function Tasks() {
   ];
 
   return (
-    <div className="p-8" style={{ backgroundColor: '#f5f4f2', minHeight: '100vh' }}>
+    <div className="p-8" style={{ backgroundColor: 'var(--bg-page)', minHeight: '100vh' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-serif font-bold text-2xl" style={{ color: '#353535' }}>Tarefas</h1>
-          <p className="font-sans text-sm mt-1" style={{ color: '#353535', opacity: 0.5 }}>
+          <h1 className="font-serif font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>Tarefas</h1>
+          <p className="font-sans text-sm mt-1" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>
             {pending.length} pendentes
             {overdue.length > 0 && <span className="text-red-500 font-bold"> · {overdue.length} atrasadas</span>}
             {' '}· {completed.length} concluídas
@@ -278,7 +272,7 @@ export default function Tasks() {
               onClick={() => setFilterStatus(btn.value)}
               className="px-4 py-2 font-sans text-sm font-medium transition-all"
               style={{
-                backgroundColor: filterStatus === btn.value ? '#355641' : 'white',
+                backgroundColor: filterStatus === btn.value ? '#355641' : 'var(--bg-card)',
                 color: filterStatus === btn.value ? 'white' : '#353535',
               }}
             >
@@ -290,7 +284,7 @@ export default function Tasks() {
           value={filterPriority}
           onChange={e => setFilterPriority(e.target.value)}
           className="px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-          style={{ color: '#353535' }}
+          style={{ color: 'var(--text-primary)' }}
         >
           <option value="">Todas as prioridades</option>
           {PRIORITIES.map(p => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
@@ -315,7 +309,7 @@ export default function Tasks() {
                 className="bg-white rounded-xl border flex items-center gap-4 p-4 transition-all"
                 style={{
                   borderColor: isOverdue ? '#fca5a5' : '#d9d9d6',
-                  backgroundColor: isOverdue ? '#fff5f5' : isDone ? '#fafafa' : 'white',
+                  backgroundColor: isOverdue ? 'rgba(220,38,38,0.06)' : isDone ? 'var(--bg-page)' : 'var(--bg-card)',
                   opacity: isDone ? 0.7 : 1
                 }}
               >
@@ -337,7 +331,7 @@ export default function Tasks() {
                 <PriorityDot priority={task.priority} />
 
                 <div className="flex-1 min-w-0">
-                  <p className={`font-sans font-bold text-sm ${isDone ? 'line-through text-gray-400' : ''}`} style={{ color: isDone ? undefined : '#353535' }}>
+                  <p className={`font-sans font-bold text-sm ${isDone ? 'line-through text-gray-400' : ''}`} style={{ color: isDone ? undefined : 'var(--text-primary)' }}>
                     {task.title}
                   </p>
                   <div className="flex items-center gap-3 mt-0.5 flex-wrap">

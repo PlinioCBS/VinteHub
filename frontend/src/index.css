@@ -2,11 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme variables ─────────────────────────────────────────────────────── */
+:root {
+  --bg-page:        #f5f4f2;
+  --bg-card:        #ffffff;
+  --bg-input:       #ffffff;
+  --bg-header:      #ffffff;
+  --border-card:    #d9d9d6;
+  --border-input:   #d9d9d6;
+  --border-header:  #e5e7eb;
+  --text-primary:   #353535;
+  --text-muted:     rgba(53, 53, 53, 0.55);
+  --text-hint:      rgba(53, 53, 53, 0.35);
+  --shadow-card:    0 1px 3px rgba(0,0,0,0.06);
+}
+
+.dark {
+  --bg-page:        #0f172a;
+  --bg-card:        #1e293b;
+  --bg-input:       #1e293b;
+  --bg-header:      #1e293b;
+  --border-card:    #334155;
+  --border-input:   #475569;
+  --border-header:  #334155;
+  --text-primary:   #f1f5f9;
+  --text-muted:     rgba(241, 245, 249, 0.60);
+  --text-hint:      rgba(241, 245, 249, 0.35);
+  --shadow-card:    0 1px 3px rgba(0,0,0,0.30);
+}
+
 @layer base {
   body {
     font-family: 'Lato', sans-serif;
-    background-color: #f5f4f2;
-    color: #353535;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.2s, color 0.2s;
   }
 
   h1, h2, h3, .font-serif {
@@ -20,30 +50,113 @@
   }
 
   .btn-secondary {
-    @apply bg-white border border-brand-gray text-charcoal px-4 py-2 rounded-lg font-sans hover:bg-cream transition-colors;
+    @apply px-4 py-2 rounded-lg font-sans transition-colors;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-card);
+    color: var(--text-primary);
   }
+  .btn-secondary:hover { background-color: var(--bg-page); }
 
   .btn-copper {
     @apply bg-copper text-white px-4 py-2 rounded-lg font-sans font-bold hover:opacity-90 transition-opacity;
   }
 
   .card {
-    @apply bg-white rounded-xl border border-brand-gray shadow-sm;
+    @apply rounded-xl shadow-sm;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-card);
+    box-shadow: var(--shadow-card);
   }
 
   .input-field {
-    @apply w-full border border-brand-gray rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green focus:ring-1 focus:ring-green bg-white;
+    @apply w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green transition-colors;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
   }
+  .input-field:focus { border-color: #355641; }
 
   .label {
-    @apply block text-xs font-sans font-bold text-charcoal mb-1 uppercase tracking-wide opacity-60;
+    @apply block text-xs font-sans font-bold mb-1 uppercase tracking-wide;
+    color: var(--text-muted);
   }
 }
 
-/* Scrollbar styling */
+/* ── Dark mode — global structural overrides ─────────────────────────────── */
+
+/* Backgrounds that pages set via inline style */
+.dark main  { background-color: var(--bg-page); }
+
+/* White backgrounds */
+.dark .bg-white  { background-color: var(--bg-card) !important; }
+.dark .bg-gray-50,
+.dark .bg-gray-100 { background-color: var(--bg-page) !important; }
+
+/* Borders */
+.dark .border-gray-100,
+.dark .border-gray-200 { border-color: var(--border-card) !important; }
+
+/* Text */
+.dark .text-gray-400  { color: rgba(148,163,184,1) !important; }
+.dark .text-gray-500  { color: rgba(148,163,184,0.9) !important; }
+.dark .text-gray-600  { color: rgba(148,163,184,0.85) !important; }
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-gray-900  { color: var(--text-primary) !important; }
+.dark .text-charcoal  { color: var(--text-primary) !important; }
+
+/* Charcoal opacity variants (text-charcoal/40, /50, /70 etc.) */
+.dark .text-charcoal\/30 { color: rgba(241, 245, 249, 0.30) !important; }
+.dark .text-charcoal\/40 { color: rgba(241, 245, 249, 0.40) !important; }
+.dark .text-charcoal\/50 { color: rgba(241, 245, 249, 0.55) !important; }
+.dark .text-charcoal\/60 { color: rgba(241, 245, 249, 0.65) !important; }
+.dark .text-charcoal\/70 { color: rgba(241, 245, 249, 0.75) !important; }
+
+/* Brand colors with low contrast on dark backgrounds */
+.dark .text-green  { color: var(--text-primary) !important; }
+.dark .text-brown  { color: var(--text-primary) !important; }
+
+/* bg-white / bg-gray-50 used as card/container backgrounds */
+.dark .bg-white    { background-color: var(--bg-card) !important; }
+.dark .bg-gray-50  { background-color: var(--bg-page) !important; }
+.dark .border-gray-100 { border-color: var(--border-card) !important; }
+
+/* Hover variants that Tailwind generates as separate selectors */
+.dark .hover\:bg-gray-50:hover { background-color: rgba(255,255,255,0.04) !important; }
+.dark .hover\:bg-white:hover   { background-color: rgba(255,255,255,0.04) !important; }
+
+/* Calendar — brand colors that don't adapt automatically */
+.dark .bg-cream          { background-color: var(--bg-page) !important; }
+.dark .hover\:bg-cream:hover { background-color: rgba(255,255,255,0.06) !important; }
+.dark .border-brand-gray { border-color: var(--border-card) !important; }
+.dark .bg-brand-gray     { background-color: var(--border-card) !important; }
+.dark .hover\:border-brand-gray:hover { border-color: var(--border-card) !important; }
+
+/* Calendar cell hover */
+.dark .calendar-cell:hover { background-color: rgba(255,255,255,0.04) !important; }
+.dark .calendar-cell.border-transparent { border-color: transparent !important; }
+
+/* Inputs */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark textarea,
+.dark select {
+  background-color: var(--bg-input) !important;
+  border-color: var(--border-input) !important;
+  color: var(--text-primary) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: var(--text-hint) !important; }
+
+/* Tables */
+.dark table { color: var(--text-primary); }
+.dark thead tr { background-color: var(--bg-page) !important; }
+.dark tbody tr:hover { background-color: rgba(255,255,255,0.04) !important; }
+.dark td, .dark th { border-color: var(--border-card) !important; }
+
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f5f4f2; }
-::-webkit-scrollbar-thumb { background: #d9d9d6; border-radius: 3px; }
+::-webkit-scrollbar-track { background: var(--bg-page); }
+::-webkit-scrollbar-thumb { background: var(--border-card); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7A5137; }
 
 /* Kanban drag */

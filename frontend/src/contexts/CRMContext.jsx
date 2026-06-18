@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export const CRM_CONFIG = {
-  investimento: { label: 'Investimento', color: '#355641', icon: '📈', bgLight: '#f0f4f1' },
-  cambio: { label: 'Câmbio', color: '#2563eb', icon: '💱', bgLight: '#eff6ff' },
-  credito: { label: 'Crédito', color: '#7c3aed', icon: '💳', bgLight: '#f5f3ff' },
-  seguro: { label: 'Seguro', color: '#0891b2', icon: '🛡️', bgLight: '#ecfeff' },
+  investimento: { label: 'Investimento', color: '#5aaa6e', icon: '📈', bgLight: 'rgba(53,86,65,0.08)' },
+  credito: { label: 'Crédito', color: '#7c3aed', icon: '💳', bgLight: 'rgba(124,58,237,0.08)' },
+  cambio: { label: 'Câmbio', color: '#2563eb', icon: '💱', bgLight: 'rgba(37,99,235,0.08)' },
+  seguro: { label: 'Seguro', color: '#0891b2', icon: '🛡️', bgLight: 'rgba(8,145,178,0.08)' },
 };
 
 const CRMContext = createContext(null);

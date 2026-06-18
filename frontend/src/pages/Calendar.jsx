@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 import Modal from '../components/Modal.jsx';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -13,6 +13,7 @@ const DURATIONS = [
 ];
 
 export default function Calendar() {
+  const api = useAPI();
   const [searchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
   const [calStatus, setCalStatus] = useState({ connected: false, configured: false });

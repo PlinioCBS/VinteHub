@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import api from '../api.js';
+import React, { useState, useEffect, useRef } from 'react';
+import useAPI from '../hooks/useAPI.js';
+import { useDeals, useContacts } from '../hooks/useConvexData.js';
 import Modal from '../components/Modal.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import CurrencyInput from '../components/CurrencyInput.jsx';
 import { useToast } from '../contexts/ToastContext.jsx';
+import { useCRM } from '../contexts/CRMContext.jsx';
 
-const STAGES = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho'];
+const STAGES = ['prospecting', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho', 'cliente_ativo'];
 const STAGE_LABELS = {
   prospecting: 'Prospecção', qualificacao: 'Qualificação', proposta: 'Proposta',
-  negociacao: 'Negociação', fechado_ganho: 'Ganho'
+  negociacao: 'Negociação', fechado_ganho: 'Ganho', cliente_ativo: 'Cliente Ativo'
 };
 const STAGE_COLORS = {
   prospecting: '#9ca3af', qualificacao: '#dd7752', proposta: '#7A5137',
-  negociacao: '#355641', fechado_ganho: '#22c55e'
+  negociacao: '#355641', fechado_ganho: '#22c55e', cliente_ativo: '#22c55e'
 };
-const STAGE_PROB = { prospecting: 10, qualificacao: 25, proposta: 50, negociacao: 75, fechado_ganho: 100 };
+const STAGE_PROB = { prospecting: 10, qualificacao: 25, proposta: 50, negociacao: 75, fechado_ganho: 100, cliente_ativo: 100 };
 
 const fmtCur = (v) => v ? `R$ ${Number(v).toLocaleString('pt-BR')}` : 'R$ 0';
 
@@ -28,18 +31,20 @@ function ProbBar({ prob }) {
   );
 }
 
-function DealCard({ deal, onDragStart, onAdvance, onReopen, onClick, onDelete }) {
+function DealCard({ deal, onDragStart, onAdvance, onReopen, onReopenFromActive, onClick, onDelete }) {
   const isWon = deal.stage === 'fechado_ganho';
+  const isClienteAtivo = deal.stage === 'cliente_ativo';
+  const isLocked = isClienteAtivo; // só cliente_ativo não pode ser arrastado
   return (
     <div
-      draggable={!isWon}
-      onDragStart={!isWon ? onDragStart : undefined}
+      draggable={!isLocked}
+      onDragStart={!isLocked ? onDragStart : undefined}
       onClick={onClick}
-      className={`bg-white rounded-xl border p-3 cursor-pointer hover:shadow-md transition-all mb-2 group ${isWon ? 'border-green-200 bg-green-50/30' : ''}`}
-      style={{ borderColor: isWon ? '#bbf7d0' : '#d9d9d6' }}
+      className={`bg-white rounded-xl border p-3 cursor-pointer hover:shadow-md transition-all mb-2 group ${isClienteAtivo ? 'border-green-200 bg-green-50/30' : ''}`}
+      style={{ borderColor: isClienteAtivo ? '#bbf7d0' : '#d9d9d6' }}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="font-sans font-bold text-sm truncate flex-1" style={{ color: '#353535' }}>{deal.title}</p>
+        <p className="font-sans font-bold text-sm truncate flex-1" style={{ color: 'var(--text-primary)' }}>{deal.title}</p>
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
           className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition-all flex-shrink-0"
@@ -49,8 +54,13 @@ function DealCard({ deal, onDragStart, onAdvance, onReopen, onClick, onDelete })
         </button>
       </div>
       {deal.contact_name && <p className="font-sans text-xs text-gray-400 mt-0.5 truncate">{deal.contact_name}</p>}
+      {deal.finder_name && (
+        <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full font-sans text-xs font-semibold" style={{ backgroundColor: 'rgba(37,99,235,0.10)', color: '#2563eb' }}>
+          🤝 {deal.finder_name}
+        </span>
+      )}
       <div className="flex items-center justify-between mt-2">
-        <span className="font-serif text-sm font-bold" style={{ color: '#355641' }}>{fmtCur(deal.value)}</span>
+        <span className="font-serif text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtCur(deal.value)}</span>
         <span className="font-sans text-xs text-gray-400">{deal.probability}%</span>
       </div>
       <ProbBar prob={deal.probability} />
@@ -60,12 +70,20 @@ function DealCard({ deal, onDragStart, onAdvance, onReopen, onClick, onDelete })
         </p>
       )}
       <div className="mt-2">
-        {isWon ? (
+        {isClienteAtivo ? (
           <button
-            onClick={e => { e.stopPropagation(); onReopen(); }}
+            onClick={e => { e.stopPropagation(); onReopenFromActive(); }}
             className="font-sans text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
             ↩ Reabrir
+          </button>
+        ) : isWon ? (
+          <button
+            onClick={e => { e.stopPropagation(); onAdvance(); }}
+            className="font-sans text-xs font-bold transition-colors hover:opacity-70"
+            style={{ color: '#22c55e' }}
+          >
+            → Cliente Ativo
           </button>
         ) : (
           <button
@@ -82,6 +100,7 @@ function DealCard({ deal, onDragStart, onAdvance, onReopen, onClick, onDelete })
 }
 
 function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
+  const api = useAPI();
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
@@ -113,7 +132,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
     try {
       const payload = {
         ...form,
-        value: form.value ? parseFloat(form.value) : 0,
+        value: form.value ? Number(form.value) : 0,
         probability: parseInt(form.probability) || STAGE_PROB[form.stage] || 10,
         contact_id: form.contact_id || null,
       };
@@ -144,7 +163,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
             value={form.title}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             className="w-full px-3 py-2 rounded-xl border font-sans text-sm outline-none transition-all"
-            style={{ borderColor: errors.title ? '#ef4444' : '#d9d9d6', color: '#353535' }}
+            style={{ borderColor: errors.title ? '#ef4444' : '#d9d9d6', color: 'var(--text-primary)' }}
             onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
             onBlur={e => { e.target.style.borderColor = errors.title ? '#ef4444' : '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
           />
@@ -158,7 +177,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.contact_id}
               onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               <option value="">Nenhum</option>
               {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -166,16 +185,10 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
           </div>
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Valor (R$)</label>
-            <input
-              type="number"
-              min="0"
+            <CurrencyInput
               value={form.value}
-              onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
-              placeholder="0"
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-              style={{ color: '#353535' }}
-              onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
-              onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
+              onChange={v => setForm(f => ({ ...f, value: v }))}
+              placeholder="R$ 0,00"
             />
           </div>
           <div>
@@ -184,7 +197,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.stage}
               onChange={e => setForm(f => ({ ...f, stage: e.target.value, probability: STAGE_PROB[e.target.value] || f.probability }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
             </select>
@@ -198,7 +211,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.probability}
               onChange={e => setForm(f => ({ ...f, probability: parseInt(e.target.value) || 0 }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
               onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
               onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
             />
@@ -210,7 +223,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
               value={form.expected_close}
               onChange={e => setForm(f => ({ ...f, expected_close: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
-              style={{ color: '#353535' }}
+              style={{ color: 'var(--text-primary)' }}
               onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
               onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
             />
@@ -224,7 +237,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
             value={form.notes}
             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none resize-none transition-all"
-            style={{ color: '#353535' }}
+            style={{ color: 'var(--text-primary)' }}
             onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
             onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
           />
@@ -251,42 +264,36 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
 }
 
 export default function Pipeline() {
+  const api = useAPI();
   const { toast } = useToast();
-  const [byStage, setByStage] = useState({});
-  const [loading, setLoading] = useState(true);
+  const { activeCRM } = useCRM();
+  const allDeals = useDeals();
+  const contacts = useContacts();
+  const loading = allDeals === undefined;
   const [dragDeal, setDragDeal] = useState(null);
+  const dragDealRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
-  const [contacts, setContacts] = useState([]);
   const [formModal, setFormModal] = useState({ open: false, deal: null });
   const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, title: '' });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.getDealsByStage();
-      setByStage(data);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); api.getContacts().then(setContacts).catch(() => {}); }, [load]);
+  // Group deals by stage reactively
+  const byStage = (allDeals ?? []).reduce((acc, d) => {
+    const s = d.stage || 'prospecting';
+    if (!acc[s]) acc[s] = [];
+    acc[s].push(d);
+    return acc;
+  }, {});
 
   async function handleDrop(stage) {
-    if (!dragDeal || dragDeal.stage === stage) { setDragDeal(null); setDragOver(null); return; }
-    const updated = { ...dragDeal, stage, probability: STAGE_PROB[stage] || dragDeal.probability };
-    setByStage(prev => {
-      const next = { ...prev };
-      next[dragDeal.stage] = (next[dragDeal.stage] || []).filter(d => d.id !== dragDeal.id);
-      next[stage] = [updated, ...(next[stage] || [])];
-      return next;
-    });
+    const dragDeal = dragDealRef.current;
+    if (!dragDeal || dragDeal.stage === stage || stage === 'cliente_ativo') { dragDealRef.current = null; setDragDeal(null); setDragOver(null); return; }
     try {
-      await api.updateDeal(dragDeal.id, updated);
+      await api.updateDeal(dragDeal._id, { stage, probability: STAGE_PROB[stage] || dragDeal.probability });
       toast.success('Negócio movido');
     } catch (e) {
       toast.error('Erro ao mover negócio');
-      load();
     }
-    setDragDeal(null); setDragOver(null);
+    dragDealRef.current = null; setDragDeal(null); setDragOver(null);
   }
 
   async function handleAdvance(deal) {
@@ -294,16 +301,22 @@ export default function Pipeline() {
     if (idx >= STAGES.length - 1) return;
     const nextStage = STAGES[idx + 1];
     try {
-      await api.updateDeal(deal.id, { ...deal, stage: nextStage, probability: STAGE_PROB[nextStage] });
+      await api.updateDeal(deal._id, { stage: nextStage, probability: STAGE_PROB[nextStage] });
       toast.success(`Negócio avançado para ${STAGE_LABELS[nextStage]}`);
-      load();
     } catch (e) { toast.error(e.message); }
   }
 
   async function handleReopen(deal) {
     try {
-      await api.updateDeal(deal.id, { ...deal, stage: 'negociacao', probability: 75 });
+      await api.updateDeal(deal._id, { stage: 'negociacao', probability: 75 });
       toast.success('Negócio reaberto');
+    } catch (e) { toast.error(e.message); }
+  }
+
+  async function handleReopenFromActive(deal) {
+    try {
+      await api.updateDeal(deal.id, { ...deal, stage: 'negociacao', probability: 75 });
+      toast.success('Negócio reaberto para negociação');
       load();
     } catch (e) { toast.error(e.message); }
   }
@@ -322,19 +335,19 @@ export default function Pipeline() {
   const colTotal = (stage) => (byStage[stage] || []).reduce((s, d) => s + (d.value || 0), 0);
 
   if (loading) return (
-    <div className="p-8" style={{ backgroundColor: '#f5f4f2', minHeight: '100vh' }}>
-      <div className="grid grid-cols-5 gap-3">
+    <div className="p-8" style={{ backgroundColor: 'var(--bg-page)', minHeight: '100vh' }}>
+      <div className="grid grid-cols-6 gap-3">
         {STAGES.map(s => <div key={s} className="h-64 bg-white rounded-xl animate-pulse" />)}
       </div>
     </div>
   );
 
   return (
-    <div className="p-8 h-full" style={{ backgroundColor: '#f5f4f2', minHeight: '100vh' }}>
+    <div className="p-8 h-full" style={{ backgroundColor: 'var(--bg-page)', minHeight: '100vh' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-serif font-bold text-2xl" style={{ color: '#353535' }}>Pipeline</h1>
-          <p className="font-sans text-sm mt-1" style={{ color: '#353535', opacity: 0.5 }}>Kanban de negócios</p>
+          <h1 className="font-serif font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>Pipeline</h1>
+          <p className="font-sans text-sm mt-1" style={{ color: 'var(--text-primary)', opacity: 0.5 }}>Kanban de negócios</p>
         </div>
         <button
           onClick={() => setFormModal({ open: true, deal: null })}
@@ -347,18 +360,18 @@ export default function Pipeline() {
       </div>
 
       {/* Kanban */}
-      <div className="grid grid-cols-5 gap-3" style={{ minHeight: 'calc(100vh - 200px)' }}>
+      <div className="grid grid-cols-6 gap-3" style={{ minHeight: 'calc(100vh - 200px)' }}>
         {STAGES.map(stage => {
           const deals = byStage[stage] || [];
-          const isWon = stage === 'fechado_ganho';
+          const isLocked = stage === 'fechado_ganho' || stage === 'cliente_ativo';
           return (
             <div
               key={stage}
               className="flex flex-col rounded-xl border-2 transition-colors"
-              style={{ borderColor: dragOver === stage && !isWon ? '#355641' : 'transparent', backgroundColor: dragOver === stage && !isWon ? '#35564108' : 'transparent' }}
-              onDragOver={!isWon ? (e) => { e.preventDefault(); setDragOver(stage); } : undefined}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={!isWon ? () => handleDrop(stage) : undefined}
+              style={{ borderColor: dragOver === stage ? '#355641' : 'transparent', backgroundColor: dragOver === stage ? '#35564108' : 'transparent' }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
+              onDrop={() => handleDrop(stage)}
             >
               {/* Column header */}
               <div
@@ -366,7 +379,7 @@ export default function Pipeline() {
                 style={{ backgroundColor: STAGE_COLORS[stage] + '18', borderTop: `3px solid ${STAGE_COLORS[stage]}` }}
               >
                 <div className="flex items-center justify-between">
-                  <p className="font-sans font-bold text-sm" style={{ color: '#353535' }}>{STAGE_LABELS[stage]}</p>
+                  <p className="font-sans font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{STAGE_LABELS[stage]}</p>
                   <span className="font-sans text-xs bg-white rounded-full px-2 py-0.5 font-bold text-gray-500">{deals.length}</span>
                 </div>
                 <p className="font-sans text-xs text-gray-500 mt-0.5">{fmtCur(colTotal(stage))}</p>
@@ -378,9 +391,10 @@ export default function Pipeline() {
                   <DealCard
                     key={deal.id}
                     deal={deal}
-                    onDragStart={() => setDragDeal(deal)}
+                    onDragStart={() => { dragDealRef.current = deal; setDragDeal(deal); }}
                     onAdvance={() => handleAdvance(deal)}
                     onReopen={() => handleReopen(deal)}
+                    onReopenFromActive={() => handleReopenFromActive(deal)}
                     onClick={() => setFormModal({ open: true, deal })}
                     onDelete={() => setConfirmDelete({ open: true, id: deal.id, title: deal.title })}
                   />

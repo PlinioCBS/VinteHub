@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api.js';
+import useAPI from '../hooks/useAPI.js';
 
 export default function BriefingPanel({ contact, onUpdate }) {
+  const api = useAPI();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(contact?.notes || '');
   const [saving, setSaving] = useState(false);

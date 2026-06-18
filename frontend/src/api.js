@@ -4,7 +4,7 @@ const BASE = import.meta.env.VITE_API_URL
   : '/api';
 
 function getToken() {
-  return localStorage.getItem('vinte_token');
+  return localStorage.getItem('vinte_token') || localStorage.getItem('finder_token');
 }
 
 function getActiveCRM() {
@@ -135,11 +135,52 @@ export const api = {
     }).then(r => r.json());
   },
 
-  // Client Products (Crédito)
+  // Client Products (Crédito / Câmbio / Seguro)
   getProducts: (params = {}) => request('/products?' + new URLSearchParams(params)),
   createProduct: (data) => request('/products', { method: 'POST', body: data }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: data }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+
+  // Product Catalog (master CRUD)
+  getProductCatalog: (crm_type) => request('/product-catalog' + (crm_type ? `?crm_type=${crm_type}` : '')),
+  createProductCatalog: (data) => request('/product-catalog', { method: 'POST', body: data }),
+  updateProductCatalog: (id, data) => request(`/product-catalog/${id}`, { method: 'PUT', body: data }),
+  deleteProductCatalog: (id) => request(`/product-catalog/${id}`, { method: 'DELETE' }),
+  getProductCatalogSettings: () => request('/product-catalog/settings'),
+  updateProductCatalogSettings: (settings) => request('/product-catalog/settings', { method: 'PUT', body: { settings } }),
+
+  // All clients (no CRM filter — used by Crédito page to show cross-CRM clients)
+  getAllClients: () => request('/clients'),
+
+  // Dólar (USD portfolio — investimento CRM)
+  getDolarClients: () => request('/clients/dolar'),
+  updateAumUsd: (id, aum_usd) => request(`/clients/${id}/aum-usd`, { method: 'PATCH', body: { aum_usd } }),
+
+  // Finders (parceiros)
+  getFinders: () => request('/finders'),
+  getFinder: (id) => request(`/finders/${id}`),
+  createFinder: (data) => request('/finders', { method: 'POST', body: data }),
+  updateFinder: (id, data) => request(`/finders/${id}`, { method: 'PATCH', body: data }),
+  deleteFinder: (id) => request(`/finders/${id}`, { method: 'DELETE' }),
+  resetFinderPassword: (id, password) => request(`/finders/${id}/reset-password`, { method: 'POST', body: { password } }),
+
+  // Finder campaigns (consultant)
+  getFinderCampaigns: () => request('/finders/campaigns'),
+  createFinderCampaign: (data) => request('/finders/campaigns', { method: 'POST', body: data }),
+  deleteFinderCampaign: (id) => request(`/finders/campaigns/${id}`, { method: 'DELETE' }),
+
+  // Finder portal (uses finder_token)
+  finderLogin: (email, password) => {
+    const BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+    return fetch(`${BASE_URL}/finders/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }).then(r => r.json());
+  },
+  getFinderMe: () => request('/finders/portal/me'),
+  getFinderLeads: () => request('/finders/portal/leads'),
+  createFinderLead: (data) => request('/finders/portal/leads', { method: 'POST', body: data }),
 };
 
 export default api;

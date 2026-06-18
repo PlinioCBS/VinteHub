@@ -8,7 +8,7 @@ export default function RevenueClientPanel({ aum, fee }) {
 
   return (
     <div className="rounded-xl p-4 space-y-2" style={{ backgroundColor: 'rgba(53,86,65,0.06)' }}>
-      <p className="text-xs font-bold uppercase tracking-wide text-green">Receita (Fee {fee || 0.55}% a.a.)</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-green">Receita (Fee {fee || 0.55}% )</p>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <p className="text-xs text-charcoal/50">Anual</p>

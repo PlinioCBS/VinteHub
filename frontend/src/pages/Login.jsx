@@ -63,24 +63,24 @@ export default function Login() {
           <div className="shape1 absolute w-80 h-80 rounded-full opacity-10"
             style={{ backgroundColor: '#dd7752', top: '-10%', left: '-10%' }} />
           <div className="shape2 absolute w-64 h-64 rounded-full opacity-10"
-            style={{ backgroundColor: '#f5f0e8', bottom: '5%', right: '-8%' }} />
+            style={{ backgroundColor: 'var(--bg-page)', bottom: '5%', right: '-8%' }} />
           <div className="shape3 absolute w-48 h-48 rounded-full opacity-5"
             style={{ backgroundColor: '#dd7752', top: '40%', left: '60%' }} />
           <div className="shape1 absolute w-32 h-32 rounded-full opacity-10"
-            style={{ backgroundColor: '#f5f0e8', bottom: '30%', left: '5%', animationDelay: '2s' }} />
+            style={{ backgroundColor: 'var(--bg-page)', bottom: '30%', left: '5%', animationDelay: '2s' }} />
         </div>
 
         {/* Logo and tagline */}
         <div className="relative z-10 text-center px-12">
           <div className="mb-8">
             <img
-              src="/Logo_Vinte_green.png"
+              src="/Logo_Vinte_white.png"
               alt="Vinte Hub"
-              className="h-44 w-auto object-contain mx-auto drop-shadow-2xl"
+              className="h-60 w-auto object-contain mx-auto drop-shadow-2xl"
             />
           </div>
           <p className="font-sans text-white/70 text-lg tracking-wide mt-2">
-            Gestão Financeira de Alta Performance
+            Inteligência e Gestão para os Consultores
           </p>
           <div className="mt-10 w-16 h-0.5 mx-auto" style={{ backgroundColor: '#dd7752' }} />
           <p className="font-sans text-white/40 text-sm mt-6 leading-relaxed max-w-sm mx-auto">
@@ -92,7 +92,7 @@ export default function Login() {
       {/* Right - Login form */}
       <div
         className="flex-1 flex items-center justify-center p-8"
-        style={{ backgroundColor: '#f5f0e8' }}
+        style={{ backgroundColor: 'var(--bg-page)' }}
       >
         <div className="w-full max-w-md">
           {/* Mobile logo */}
@@ -169,7 +169,7 @@ export default function Login() {
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-sans"
-                  style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>
+                  style={{ backgroundColor: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
