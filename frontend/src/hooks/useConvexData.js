@@ -3,7 +3,7 @@
  * Use these instead of useEffect + api.getX() in pages.
  */
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
+import { api } from '../../convex/browserApi';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useCRM } from '../contexts/CRMContext.jsx';
 

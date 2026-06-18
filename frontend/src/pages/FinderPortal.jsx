@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConvex } from 'convex/react';
-import { api as convexAPI } from '../../convex/_generated/api';
+import { api as convexAPI } from '../../convex/browserApi';
 import { maskPhone } from '../utils/masks.js';
 
 const STAGE_LABELS = {

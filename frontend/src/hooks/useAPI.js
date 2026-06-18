@@ -1,5 +1,5 @@
 import { useConvex } from 'convex/react';
-import { api as convexAPI } from '../../convex/_generated/api';
+import { api as convexAPI } from '../../convex/browserApi';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 function getActiveCRM() {
