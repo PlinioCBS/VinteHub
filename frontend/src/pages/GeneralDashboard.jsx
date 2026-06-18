@@ -253,6 +253,7 @@ function EmployeeRanking() {
 }
 
 export default function GeneralDashboard() {
+  const api = useAPI();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
