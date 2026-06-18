@@ -15,16 +15,24 @@ if (!convexUrl) {
 const convex = new ConvexReactClient(convexUrl);
 
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
+  constructor(props) { super(props); this.state = { error: null, info: null }; }
   static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { this.setState({ info }); }
   render() {
     if (this.state.error) {
       return (
         <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#333' }}>
           <h2 style={{ color: 'red' }}>Erro ao inicializar o app</h2>
-          <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, overflow: 'auto', fontSize: 13 }}>
+          <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, overflow: 'auto', fontSize: 12 }}>
             {this.state.error?.message || String(this.state.error)}
+            {'\n\n'}
+            {this.state.error?.stack || ''}
+            {'\n\n--- Component Stack ---\n'}
+            {this.state.info?.componentStack || ''}
           </pre>
+          <p style={{ marginTop: 16, fontSize: 13, color: '#666' }}>
+            VITE_CONVEX_URL: {import.meta.env.VITE_CONVEX_URL || '(não definida)'}
+          </p>
         </div>
       );
     }
