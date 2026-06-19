@@ -414,7 +414,7 @@ export default function Pipeline() {
         onClose={() => setFormModal({ open: false, deal: null })}
         initial={formModal.deal}
         contacts={contacts}
-        onSuccess={load}
+        onSuccess={() => {}}
       />
 
       <ConfirmDialog

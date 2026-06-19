@@ -178,6 +178,24 @@ export const getCampaign = query({
   },
 });
 
+export const listCampaigns = query({
+  args: { consultantId: v.id("users") },
+  handler: async (ctx, { consultantId }) => {
+    const campaigns = await ctx.db
+      .query("finderCampaigns")
+      .withIndex("by_consultant", q => q.eq("consultantId", consultantId))
+      .collect();
+    return campaigns.sort((a, b) => b.month.localeCompare(a.month));
+  },
+});
+
+export const deleteCampaign = mutation({
+  args: { id: v.id("finderCampaigns") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id);
+  },
+});
+
 export const upsertCampaign = mutation({
   args: {
     consultantId: v.id("users"),

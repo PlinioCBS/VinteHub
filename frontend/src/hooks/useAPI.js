@@ -164,9 +164,11 @@ export function useAPI() {
     resetFinderPassword: (id, password) =>
       client.mutation(convexAPI.finders.update, { id, password }),
     getFinderCampaigns: () =>
-      client.query(convexAPI.finders.getCampaign, { consultantId: userId, month: new Date().toISOString().slice(0, 7) }),
+      client.query(convexAPI.finders.listCampaigns, { consultantId: userId }),
     createFinderCampaign: (data) =>
       client.mutation(convexAPI.finders.upsertCampaign, { consultantId: userId, ...data }),
+    deleteFinderCampaign: (id) =>
+      client.mutation(convexAPI.finders.deleteCampaign, { id }),
 
     // ─── Finder auth ─────────────────────────────────────────────
     finderLogin: (email, password) =>

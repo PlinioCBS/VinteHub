@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useAPI from '../hooks/useAPI.js';
 import { useFinders } from '../hooks/useConvexData.js';
 import Modal from '../components/Modal.jsx';
@@ -30,7 +30,7 @@ const KPI_OPTIONS = [
 ];
 
 const emptyForm = { name: '', email: '', phone: '', company: '', notes: '', password: '', state: '' };
-const emptyCampaign = { month: new Date().toISOString().slice(0, 7), kpi_type: 'credito_producao', kpi_target: '', prize_description: '', prize_value: '', description: '' };
+const emptyCampaign = { month: new Date().toISOString().slice(0, 7), kpiType: 'credito_producao', kpiTarget: '', prizeDescription: '', prizeValue: '', description: '' };
 
 function InputField({ label, value, onChange, type = 'text', placeholder = '', required = false }) {
   return (
@@ -135,7 +135,7 @@ function CampaignSection({ isMaster }) {
 
   function openModal(existing) {
     if (existing) {
-      setForm({ month: existing.month, kpi_type: existing.kpi_type, kpi_target: existing.kpi_target, prize_description: existing.prize_description, prize_value: existing.prize_value || '', description: existing.description || '' });
+      setForm({ month: existing.month, kpiType: existing.kpiType, kpiTarget: existing.kpiTarget, prizeDescription: existing.prizeDescription, prizeValue: existing.prizeValue || '', description: existing.description || '' });
     } else {
       setForm({ ...emptyCampaign, month: currentMonth });
     }
@@ -156,7 +156,7 @@ function CampaignSection({ isMaster }) {
 
   async function handleDelete() {
     try {
-      await api.deleteFinderCampaign(confirmDel.id);
+      await api.deleteFinderCampaign(confirmDel._id);
       toast.success('Campanha excluída');
       setConfirmDel(null);
       loadCampaigns();
@@ -164,7 +164,7 @@ function CampaignSection({ isMaster }) {
   }
 
   const cf = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const currentKpi = KPI_OPTIONS.find(k => k.value === form.kpi_type) || KPI_OPTIONS[0];
+  const currentKpi = KPI_OPTIONS.find(k => k.value === form.kpiType) || KPI_OPTIONS[0];
   const currentCampaign = campaigns.find(c => c.month === currentMonth);
   const pastCampaigns = campaigns.filter(c => c.month !== currentMonth);
 
@@ -173,9 +173,9 @@ function CampaignSection({ isMaster }) {
     return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
-  const fmtPrize = (c) => c.prize_value > 0
-    ? `R$ ${Number(c.prize_value).toLocaleString('pt-BR')} — ${c.prize_description}`
-    : c.prize_description;
+  const fmtPrize = (c) => c.prizeValue > 0
+    ? `R$ ${Number(c.prizeValue).toLocaleString('pt-BR')} — ${c.prizeDescription}`
+    : c.prizeDescription;
 
   return (
     <div className="mb-8">
@@ -209,22 +209,22 @@ function CampaignSection({ isMaster }) {
                   {fmtMonth(currentCampaign.month)} — Campanha Ativa
                 </span>
               </div>
-              <p className="font-serif font-bold text-xl mb-1" style={{ color: 'var(--text-primary)' }}>{currentCampaign.prize_description}</p>
-              {currentCampaign.prize_value > 0 && (
+              <p className="font-serif font-bold text-xl mb-1" style={{ color: 'var(--text-primary)' }}>{currentCampaign.prizeDescription}</p>
+              {currentCampaign.prizeValue > 0 && (
                 <p className="font-sans text-sm font-semibold" style={{ color: '#355641' }}>
-                  Valor: R$ {Number(currentCampaign.prize_value).toLocaleString('pt-BR')}
+                  Valor: R$ {Number(currentCampaign.prizeValue).toLocaleString('pt-BR')}
                 </p>
               )}
               <div className="flex items-center gap-3 mt-2 flex-wrap">
                 <span className="px-2.5 py-1 rounded-full font-sans text-xs font-bold"
                   style={{ backgroundColor: 'rgba(37,99,235,0.10)', color: '#2563eb' }}>
-                  {KPI_OPTIONS.find(k => k.value === currentCampaign.kpi_type)?.label}
+                  {KPI_OPTIONS.find(k => k.value === currentCampaign.kpiType)?.label}
                 </span>
-                {currentCampaign.kpi_target > 0 && (
+                {currentCampaign.kpiTarget > 0 && (
                   <span className="font-sans text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Meta: {currentCampaign.kpi_type === 'credito_producao'
-                      ? `R$ ${Number(currentCampaign.kpi_target).toLocaleString('pt-BR')}`
-                      : `${currentCampaign.kpi_target} leads`}
+                    Meta: {currentCampaign.kpiType === 'credito_producao'
+                      ? `R$ ${Number(currentCampaign.kpiTarget).toLocaleString('pt-BR')}`
+                      : `${currentCampaign.kpiTarget} leads`}
                   </span>
                 )}
               </div>
@@ -298,12 +298,12 @@ function CampaignSection({ isMaster }) {
             </label>
             <div className="grid grid-cols-2 gap-2">
               {KPI_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => cf('kpi_type', opt.value)}
+                <button key={opt.value} type="button" onClick={() => cf('kpiType', opt.value)}
                   className="px-3 py-3 rounded-xl border font-sans text-xs font-semibold text-left transition-all"
                   style={{
-                    backgroundColor: form.kpi_type === opt.value ? 'rgba(53,86,65,0.08)' : 'var(--bg-page)',
-                    borderColor: form.kpi_type === opt.value ? '#355641' : 'var(--border-card)',
-                    color: form.kpi_type === opt.value ? '#355641' : 'var(--text-muted)',
+                    backgroundColor: form.kpiType === opt.value ? 'rgba(53,86,65,0.08)' : 'var(--bg-page)',
+                    borderColor: form.kpiType === opt.value ? '#355641' : 'var(--border-card)',
+                    color: form.kpiType === opt.value ? '#355641' : 'var(--text-muted)',
                   }}>
                   <span className="block font-bold">{opt.unit === 'R$' ? '💰' : '🤝'} {opt.unit}</span>
                   <span className="block text-xs mt-0.5 opacity-70">{opt.label}</span>
@@ -317,7 +317,7 @@ function CampaignSection({ isMaster }) {
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">
               Meta ({currentKpi.unit})
             </label>
-            <input type="number" value={form.kpi_target} onChange={e => cf('kpi_target', e.target.value)}
+            <input type="number" value={form.kpiTarget} onChange={e => cf('kpiTarget', e.target.value)}
               placeholder={currentKpi.unit === 'R$' ? 'Ex: 500000' : 'Ex: 10'}
               min="0" step={currentKpi.unit === 'R$' ? '1000' : '1'}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
@@ -333,7 +333,7 @@ function CampaignSection({ isMaster }) {
               <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">
                 Premiação <span className="text-red-500">*</span>
               </label>
-              <input type="text" value={form.prize_description} onChange={e => cf('prize_description', e.target.value)}
+              <input type="text" value={form.prizeDescription} onChange={e => cf('prizeDescription', e.target.value)}
                 placeholder="Ex: Viagem para Cancún, iPhone 16, R$ 2.000..."
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
                 style={{ color: 'var(--text-primary)', backgroundColor: 'var(--bg-card)' }}
@@ -341,8 +341,8 @@ function CampaignSection({ isMaster }) {
                 onBlur={e => { e.target.style.borderColor = '#d9d9d6'; e.target.style.boxShadow = 'none'; }}
               />
             </div>
-            <InputField label="Valor da premiação (R$)" type="number" value={form.prize_value}
-              onChange={v => cf('prize_value', v)} placeholder="Ex: 8000" />
+            <InputField label="Valor da premiação (R$)" type="number" value={form.prizeValue}
+              onChange={v => cf('prizeValue', v)} placeholder="Ex: 8000" />
           </div>
 
           {/* Description */}
@@ -356,11 +356,11 @@ function CampaignSection({ isMaster }) {
           </div>
 
           {/* Preview */}
-          {form.prize_description && (
+          {form.prizeDescription && (
             <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
               <p className="font-sans text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#f59e0b' }}>Preview do card</p>
-              <p className="font-serif font-bold" style={{ color: 'var(--text-primary)' }}>🏆 {form.prize_description}</p>
-              {form.prize_value && <p className="font-sans text-xs mt-0.5" style={{ color: '#355641' }}>R$ {Number(form.prize_value).toLocaleString('pt-BR')}</p>}
+              <p className="font-serif font-bold" style={{ color: 'var(--text-primary)' }}>🏆 {form.prizeDescription}</p>
+              {form.prizeValue && <p className="font-sans text-xs mt-0.5" style={{ color: '#355641' }}>R$ {Number(form.prizeValue).toLocaleString('pt-BR')}</p>}
             </div>
           )}
 
