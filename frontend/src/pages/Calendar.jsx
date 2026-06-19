@@ -207,7 +207,6 @@ export default function Calendar() {
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="text-sm font-bold text-charcoal">{ev.title}</p>
-                          {ev.description && <p className="text-xs text-charcoal/50">{ev.description}</p>}
                           {ev.startTime && (
                             <p className="text-xs text-charcoal/40">
                               {new Date(ev.startTime).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}
