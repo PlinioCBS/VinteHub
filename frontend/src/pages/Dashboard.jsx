@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid } from 'recharts';
 import useAPI from '../hooks/useAPI.js';
-import { useDashboardStats, useClientsGoal, useClientsRevenue, useClients } from '../hooks/useConvexData.js';
+import { useDashboardStats, useClientsGoal, useClientsRevenue, useClients, useTasks, useRecentActivities } from '../hooks/useConvexData.js';
 import InlineField from '../components/InlineField.jsx';
 import { useCRM } from '../contexts/CRMContext.jsx';
 
@@ -625,6 +625,8 @@ export default function Dashboard() {
   const goal = useClientsGoal();
   const revenue = useClientsRevenue();
   const { clients: clientsList, totalAUM } = useClients();
+  const allTasks = useTasks();
+  const activities = useRecentActivities(10);
   const clientsData = { clients: clientsList, totalAUM };
   const loading = stats === undefined;
 
@@ -650,7 +652,7 @@ export default function Dashboard() {
     </div>
   );
 
-  // Todas as etapas do pipeline, sempre presentes mesmo se vazias
+  // Pipeline por etapa — usa stats.stages (Record<string, number>) do Convex
   const ALL_PIPELINE_STAGES = [
     { stage: 'prospecting', name: 'Prospecção' },
     { stage: 'qualificacao', name: 'Qualificação' },
@@ -659,27 +661,32 @@ export default function Dashboard() {
     { stage: 'fechado_ganho', name: 'Ganho' },
     { stage: 'cliente_ativo', name: 'Cliente Ativo' },
   ];
-  const stageMap = {};
-  (stats?.dealsByStage || []).forEach(d => {
-    stageMap[d.stage] = { count: parseInt(d.count) || 0, total: parseFloat(d.total) || 0 };
-  });
   const dealsByStage = ALL_PIPELINE_STAGES.map(s => ({
     name: s.name,
-    count: stageMap[s.stage]?.count || 0,
-    total: stageMap[s.stage]?.total || 0,
+    count: stats?.stages?.[s.stage] || 0,
   }));
 
-  const contactsByStatus = (stats?.contactsByStatus || []).map(d => ({
-    name: STATUS_LABELS[d.status] || d.status,
-    value: parseInt(d.count) || 0
-  })).filter(d => d.value > 0);
+  // Próximas Tarefas — direto do hook useTasks()
+  const today = new Date().toISOString().split('T')[0];
+  const upcomingTasks = [...(allTasks ?? [])]
+    .filter(t => t.status !== 'completed')
+    .sort((a, b) => (a.dueDate || '9999') > (b.dueDate || '9999') ? 1 : -1)
+    .slice(0, 5);
 
-  // Fallback: build contactsByStatus from clientsData if stats is empty
-  const contactsChartData = contactsByStatus.length > 0
-    ? contactsByStatus
-    : clientsData?.clients?.length > 0
-      ? [{ name: 'Cliente', value: clientsData.clients.length }]
-      : [];
+  // Monta gráfico de contatos por status a partir dos stages e clientes disponíveis
+  const contactsChartData = (() => {
+    const result = [];
+    if (stats?.stages) {
+      Object.entries(stats.stages).forEach(([stage, count]) => {
+        const label = STAGE_LABELS[stage] || STATUS_LABELS[stage];
+        if (label && count > 0) result.push({ name: label, value: count });
+      });
+    }
+    if (result.length === 0 && (clientsData?.clients?.length ?? 0) > 0) {
+      result.push({ name: 'Cliente', value: clientsData.clients.length });
+    }
+    return result;
+  })();
 
   const aumData = (stats?.aumByClient || clientsData?.clients || [])
     .map(c => ({ name: c.name, value: parseFloat(c.aum) || 0 }))
@@ -733,11 +740,11 @@ export default function Dashboard() {
       {/* Operational KPIs */}
       <div className="grid grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Prospects', value: stats?.newLeads, color: '#355641' },
+          { label: 'Prospects', value: stats?.stages?.prospecting ?? 0, color: '#355641' },
           { label: 'Em Negociação', value: stats?.openDeals, color: '#dd7752' },
           { label: 'Clientes Ativos', value: clientsData?.clients?.length ?? 0, color: '#22c55e' },
           { label: 'Negócios Ganhos', value: stats?.wonDeals, color: '#7A5137' },
-          { label: 'Tarefas Pendentes', value: stats?.pendingTasks, color: stats?.overdueTasks > 0 ? '#ef4444' : '#353535' }
+          { label: 'Tarefas Pendentes', value: stats?.pendingTasks, color: '#353535' }
         ].map(kpi => (
           <div key={kpi.label} className="card p-4 flex items-center gap-3">
             <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: kpi.color }} />
@@ -780,31 +787,44 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-4">
         <div className="card p-5">
           <p className="font-serif text-sm mb-4">Próximas Tarefas</p>
-          {stats?.upcomingTasks?.length === 0 && <p className="text-sm text-charcoal/40">Nenhuma tarefa pendente</p>}
-          <div className="space-y-2">
-            {stats?.upcomingTasks?.map(t => (
-              <div key={t.id} className="flex items-start gap-2 text-sm">
-                <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-yellow-500' : 'bg-green'}`} />
-                <div>
-                  <p className="text-charcoal font-sans text-xs">{t.title}</p>
-                  <p className="text-charcoal/40 text-xs">{t.contact_name} · {t.due_date ? new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
+          {upcomingTasks.length === 0 ? (
+            <p className="text-sm text-charcoal/40">Nenhuma tarefa pendente</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingTasks.map(t => (
+                <div key={t._id} className="flex items-start gap-2 text-sm">
+                  <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-yellow-500' : 'bg-green'}`} />
+                  <div>
+                    <p className="text-charcoal font-sans text-xs font-medium">{t.title}</p>
+                    <p className="text-charcoal/40 text-xs">
+                      {t.dueDate ? new Date(t.dueDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem prazo'}
+                      {t.dueDate && t.dueDate < today ? ' · ⚠ Atrasada' : ''}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="card p-5">
           <p className="font-serif text-sm mb-4">Atividades Recentes</p>
-          {stats?.recentActivities?.length === 0 && <p className="text-sm text-charcoal/40">Nenhuma atividade</p>}
-          <div className="space-y-2">
-            {stats?.recentActivities?.map(a => (
-              <div key={a.id} className="text-xs">
-                <p className="text-charcoal">{a.description}</p>
-                <p className="text-charcoal/40">{a.contact_name} · {new Date(a.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            ))}
-          </div>
+          {activities.length === 0 ? (
+            <p className="text-sm text-charcoal/40">Nenhuma atividade registrada</p>
+          ) : (
+            <div className="space-y-2">
+              {activities.map(a => (
+                <div key={a._id} className="text-xs border-b border-brand-gray pb-2 last:border-0">
+                  <p className="text-charcoal font-medium">{a.description || a.type || '—'}</p>
+                  <p className="text-charcoal/40 mt-0.5">
+                    {new Date(a._creationTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    {' às '}
+                    {new Date(a._creationTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="card p-5">

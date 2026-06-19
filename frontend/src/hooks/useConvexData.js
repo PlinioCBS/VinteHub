@@ -220,8 +220,12 @@ export function useGeneralStats() {
 }
 
 export function useRecentActivities(limit = 20) {
-  const base = useBaseArgs();
-  return useQuery(api.dashboard.recentActivities, { ...base, limit }) ?? [];
+  const { user } = useAuth();
+  return useQuery(api.dashboard.recentActivities, {
+    userId: user?._id ?? undefined,
+    isMaster: user?.role === 'master',
+    limit,
+  }) ?? [];
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
