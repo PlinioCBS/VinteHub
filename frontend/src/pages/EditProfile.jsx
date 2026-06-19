@@ -35,14 +35,16 @@ export default function EditProfile() {
   const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setPhotoPreview(URL.createObjectURL(file));
     setLoadingPhoto(true);
     try {
-      await api.uploadUserPhoto(user._id, file);
+      const { photoUrl } = await api.uploadUserPhoto(user._id, file);
+      setPhotoPreview(photoUrl);
+      const stored = JSON.parse(localStorage.getItem('vinte_user') || '{}');
+      localStorage.setItem('vinte_user', JSON.stringify({ ...stored, photoUrl }));
+      refreshUser();
       toast.success('Foto atualizada com sucesso!');
     } catch (err) {
-      toast.error(err.message);
-      setPhotoPreview(user?.photoUrl || null);
+      toast.error(err.message || 'Erro ao salvar foto');
     } finally {
       setLoadingPhoto(false);
     }
@@ -53,6 +55,9 @@ export default function EditProfile() {
     try {
       await api.deleteUserPhoto(user._id);
       setPhotoPreview(null);
+      const stored = JSON.parse(localStorage.getItem('vinte_user') || '{}');
+      localStorage.setItem('vinte_user', JSON.stringify({ ...stored, photoUrl: null }));
+      refreshUser();
       toast.success('Foto removida.');
     } catch (err) {
       toast.error(err.message);

@@ -6,6 +6,27 @@ function getActiveCRM() {
   return localStorage.getItem('vinte_crm') || 'investimento';
 }
 
+// Redimensiona e converte imagem para base64 (max 300px, JPEG 0.75)
+function resizeAndEncode(file, maxPx = 300) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export function useAPI() {
   const client = useConvex();
   const { user } = useAuth();
@@ -144,9 +165,15 @@ export function useAPI() {
       ),
     updateUserSalary: (id, base_salary) =>
       client.mutation(convexAPI.users.update, { id, baseSalary: base_salary }),
-    uploadUserPhoto: (id, file) => Promise.resolve({ photoUrl: null }), // handled separately
-    deleteUserPhoto: (id) =>
-      client.mutation(convexAPI.users.update, { id, photoUrl: undefined }),
+    uploadUserPhoto: async (id, file) => {
+      const photoUrl = await resizeAndEncode(file);
+      await client.mutation(convexAPI.users.update, { id, photoUrl });
+      return { photoUrl };
+    },
+    deleteUserPhoto: async (id) => {
+      await client.mutation(convexAPI.users.update, { id, photoUrl: '' });
+      return { photoUrl: null };
+    },
 
     // ─── Finders ─────────────────────────────────────────────────
     getFinders: () =>

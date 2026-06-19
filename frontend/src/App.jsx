@@ -318,7 +318,7 @@ function Sidebar({ collapsed, onToggle }) {
               title="Editar perfil"
             >
               {user?.photoUrl ? (
-                <img src={user.photo_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt={user.name} />
+                <img src={user.photoUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt={user.name} />
               ) : (
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center font-serif font-bold text-sm flex-shrink-0"
@@ -356,7 +356,7 @@ function Sidebar({ collapsed, onToggle }) {
               style={{ backgroundColor: '#dd7752' }}
             >
               {user?.photoUrl ? (
-                <img src={user.photo_url} className="w-10 h-10 rounded-full object-cover" alt={user.name} />
+                <img src={user.photoUrl} className="w-10 h-10 rounded-full object-cover" alt={user.name} />
               ) : (
                 <span className="font-serif font-bold text-sm text-white">{initials}</span>
               )}
