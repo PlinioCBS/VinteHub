@@ -317,7 +317,7 @@ function Sidebar({ collapsed, onToggle }) {
               className="flex items-center gap-3 mb-3 w-full rounded-xl px-2 py-1.5 hover:bg-white/10 transition-all duration-200 text-left"
               title="Editar perfil"
             >
-              {user?.photo_url ? (
+              {user?.photoUrl ? (
                 <img src={user.photo_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt={user.name} />
               ) : (
                 <div
@@ -355,7 +355,7 @@ function Sidebar({ collapsed, onToggle }) {
               className="w-10 h-10 rounded-full flex items-center justify-center hover:ring-2 hover:ring-white/30 transition-all"
               style={{ backgroundColor: '#dd7752' }}
             >
-              {user?.photo_url ? (
+              {user?.photoUrl ? (
                 <img src={user.photo_url} className="w-10 h-10 rounded-full object-cover" alt={user.name} />
               ) : (
                 <span className="font-serif font-bold text-sm text-white">{initials}</span>
