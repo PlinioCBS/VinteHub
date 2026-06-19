@@ -380,7 +380,7 @@ export default function Tasks() {
         onClose={() => setFormModal({ open: false, task: null })}
         initial={formModal.task}
         contacts={contacts}
-        onSuccess={load}
+        onSuccess={() => {}}
       />
 
       <ConfirmDialog

@@ -722,6 +722,7 @@ function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Clients() {
+  const api = useAPI();
   const { toast } = useToast();
   const { activeCRM } = useCRM();
   const { isMaster } = useAuth();

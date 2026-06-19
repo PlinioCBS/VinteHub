@@ -166,4 +166,12 @@ export default defineSchema({
     commissionPercent: v.optional(v.number()),
   })
     .index("by_user", ["userId"]),
+
+  googleCalendarTokens: defineTable({
+    userId: v.id("users"),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"]),
 });

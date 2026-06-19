@@ -1,5 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getValidToken, createGoogleEvent, deleteGoogleEvent } from "./googleCalendar";
+import { Id } from "./_generated/dataModel";
 
 export const list = query({
   args: {
@@ -30,8 +32,24 @@ export const create = mutation({
     userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
+    let googleEventId = args.googleEventId;
+
+    if (args.userId && args.title && args.startTime && args.endTime) {
+      const token = await getValidToken(ctx, args.userId as Id<"users">);
+      if (token) {
+        const gId = await createGoogleEvent(token, {
+          title: args.title,
+          description: args.description,
+          startTime: args.startTime,
+          endTime: args.endTime,
+        });
+        if (gId) googleEventId = gId;
+      }
+    }
+
     return await ctx.db.insert("calendarEvents", {
       ...args,
+      googleEventId,
       crmType: args.crmType ?? "investimento",
     });
   },
@@ -54,6 +72,13 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("calendarEvents") },
   handler: async (ctx, { id }) => {
+    const event = await ctx.db.get(id);
+    if (event?.googleEventId && event.userId) {
+      const token = await getValidToken(ctx, event.userId as Id<"users">);
+      if (token) {
+        await deleteGoogleEvent(token, event.googleEventId);
+      }
+    }
     await ctx.db.delete(id);
     return id;
   },

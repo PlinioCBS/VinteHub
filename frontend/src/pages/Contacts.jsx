@@ -531,7 +531,7 @@ export default function Contacts() {
         open={formModal.open}
         onClose={() => setFormModal({ open: false, contact: null })}
         initial={formModal.contact}
-        onSuccess={load}
+        onSuccess={() => {}}
       />
 
       <ConfirmDialog
@@ -543,7 +543,7 @@ export default function Contacts() {
         onCancel={() => setConfirmDelete({ open: false, id: null, name: '' })}
       />
 
-      <ImportModal open={showImport} onClose={() => setShowImport(false)} onSuccess={load} />
+      <ImportModal open={showImport} onClose={() => setShowImport(false)} onSuccess={() => {}} />
     </div>
   );
 }

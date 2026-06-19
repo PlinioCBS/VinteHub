@@ -112,9 +112,12 @@ export function useAPI() {
       client.mutation(convexAPI.clients.updateAumUsd, { id, aumUsd }),
 
     // ─── Calendar ───────────────────────────────────────────────
-    getCalendarStatus: () => Promise.resolve({ connected: false }),
-    getCalendarAuthUrl: () => Promise.resolve({ url: '' }),
-    disconnectCalendar: () => Promise.resolve({ success: true }),
+    getCalendarStatus: () =>
+      client.query(convexAPI.googleCalendar.getStatus, { userId }),
+    getCalendarAuthUrl: () =>
+      client.query(convexAPI.googleCalendar.getAuthUrl, { userId }),
+    disconnectCalendar: () =>
+      client.mutation(convexAPI.googleCalendar.disconnect, { userId }),
     getEvents: (params = {}) =>
       client.query(convexAPI.calendar.list, { ...userArgs(), ...params }),
     createEvent: (data) =>

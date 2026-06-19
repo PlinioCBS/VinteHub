@@ -422,10 +422,9 @@ export default function Finder() {
     if (!editFinder) return;
     setSaving(true);
     try {
-      await api.updateFinder(editFinder.id, { name: form.name, email: form.email, phone: form.phone, company: form.company, notes: form.notes, state: form.state });
+      await api.updateFinder(editFinder._id, { name: form.name, email: form.email, phone: form.phone, company: form.company, notes: form.notes, state: form.state });
       toast.success('Finder atualizado');
       setEditFinder(null);
-      load();
     } catch (err) { toast.error(err.message || 'Erro'); }
     finally { setSaving(false); }
   }
@@ -435,7 +434,7 @@ export default function Finder() {
     if (!newPassword || newPassword.length < 6) { toast.error('Senha deve ter ao menos 6 caracteres'); return; }
     setSaving(true);
     try {
-      await api.resetFinderPassword(resetPwFinder.id, newPassword);
+      await api.resetFinderPassword(resetPwFinder._id, newPassword);
       toast.success('Senha redefinida');
       setResetPwFinder(null);
       setNewPassword('');
@@ -446,10 +445,9 @@ export default function Finder() {
   async function handleDelete() {
     if (!confirmDelete) return;
     try {
-      await api.deleteFinder(confirmDelete.id);
+      await api.deleteFinder(confirmDelete._id);
       toast.success('Finder excluído');
       setConfirmDelete(null);
-      load();
     } catch (err) { toast.error(err.message || 'Erro'); }
   }
 
@@ -457,7 +455,6 @@ export default function Finder() {
     try {
       await api.updateFinder(finder._id, { active: finder.active ? 0 : 1 });
       toast.success(finder.active ? 'Finder desativado' : 'Finder ativado');
-      load();
     } catch (err) { toast.error(err.message || 'Erro'); }
   }
 

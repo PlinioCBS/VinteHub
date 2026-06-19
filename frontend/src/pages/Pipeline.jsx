@@ -320,7 +320,6 @@ export default function Pipeline() {
     try {
       await api.updateDeal(deal._id, { stage: 'negociacao', probability: 75 });
       toast.success('Negócio reaberto para negociação');
-      load();
     } catch (e) { toast.error(e.message); }
   }
 
@@ -329,7 +328,6 @@ export default function Pipeline() {
       await api.deleteDeal(confirmDelete.id);
       toast.success('Negócio excluído');
       setConfirmDelete({ open: false, id: null, title: '' });
-      load();
     } catch (err) {
       toast.error(err.message || 'Erro ao excluir');
     }
