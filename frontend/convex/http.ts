@@ -14,7 +14,7 @@ http.route({
     const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
 
-    const frontendUrl = process.env.FRONTEND_URL ?? "https://mazza.ventehub.com.br";
+    const frontendUrl = process.env.FRONTEND_URL ?? "https://vinte-hub.vercel.app";
 
     if (error || !code) {
       return new Response(null, {
