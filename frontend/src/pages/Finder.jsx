@@ -60,8 +60,8 @@ function FinderCard({ finder, isMaster, onEdit, onDelete, onResetPw, onToggleAct
       <div className="p-5 flex items-center gap-4">
         <div className="w-12 h-12 rounded-xl flex items-center justify-center font-serif font-bold text-lg text-white flex-shrink-0 overflow-hidden"
           style={{ backgroundColor: finder.active ? '#355641' : '#9ca3af' }}>
-          {finder.photo_url
-            ? <img src={finder.photo_url} alt={finder.name} className="w-full h-full object-cover" />
+          {finder.photoUrl
+            ? <img src={finder.photoUrl} alt={finder.name} className="w-full h-full object-cover" />
             : initials}
         </div>
         <div className="flex-1 min-w-0">
@@ -259,7 +259,7 @@ function CampaignSection({ isMaster }) {
           <p className="font-sans text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Histórico</p>
           <div className="space-y-2">
             {pastCampaigns.slice(0, 3).map(c => (
-              <div key={c.id} className="rounded-xl border px-4 py-3 flex items-center justify-between gap-3"
+              <div key={c._id} className="rounded-xl border px-4 py-3 flex items-center justify-between gap-3"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)' }}>
                 <div>
                   <span className="font-sans text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{fmtMonth(c.month)}</span>
@@ -455,14 +455,14 @@ export default function Finder() {
 
   async function handleToggleActive(finder) {
     try {
-      await api.updateFinder(finder.id, { active: finder.active ? 0 : 1 });
+      await api.updateFinder(finder._id, { active: finder.active ? 0 : 1 });
       toast.success(finder.active ? 'Finder desativado' : 'Finder ativado');
       load();
     } catch (err) { toast.error(err.message || 'Erro'); }
   }
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const myFinders = isMaster ? finders : finders.filter(fi => fi.consultant_id === user?.id);
+  const myFinders = isMaster ? finders : finders.filter(fi => fi.consultantId === user?._id);
 
   return (
     <div className="p-8" style={{ backgroundColor: 'var(--bg-page)', minHeight: '100vh' }}>
@@ -549,7 +549,7 @@ export default function Finder() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {myFinders.map(finder => (
             <FinderCard
-              key={finder.id}
+              key={finder._id}
               finder={finder}
               isMaster={isMaster}
               onEdit={() => openEdit(finder)}

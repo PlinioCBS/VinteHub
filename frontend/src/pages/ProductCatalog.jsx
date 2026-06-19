@@ -22,14 +22,14 @@ function FeeCell({ product, onSaved }) {
   const api = useAPI();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(product.fee_percent != null ? String(product.fee_percent) : '');
+  const [val, setVal] = useState(product.feePercent != null ? String(product.feePercent) : '');
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
       const fee = val === '' ? null : parseFloat(val);
-      await api.updateProductCatalog(product.id, { fee_percent: fee === null ? '' : fee });
+      await api.updateProductCatalog(product._id, { feePercent: fee === null ? undefined : fee });
       toast.success('FEE atualizado');
       onSaved();
       setEditing(false);
@@ -77,13 +77,13 @@ function FeeCell({ product, onSaved }) {
 
   return (
     <button
-      onClick={() => { setVal(product.fee_percent != null ? String(product.fee_percent) : ''); setEditing(true); }}
+      onClick={() => { setVal(product.feePercent != null ? String(product.feePercent) : ''); setEditing(true); }}
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:border-green-400 hover:bg-green-50 group"
-      style={{ borderColor: product.fee_percent != null ? '#35564140' : '#e5e7eb' }}
+      style={{ borderColor: product.feePercent != null ? '#35564140' : '#e5e7eb' }}
       title="Clique para editar o FEE deste produto"
     >
-      {product.fee_percent != null ? (
-        <span className="font-sans text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{product.fee_percent}%</span>
+      {product.feePercent != null ? (
+        <span className="font-sans text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{product.feePercent}%</span>
       ) : (
         <span className="font-sans text-xs text-gray-400 group-hover:text-green-600">+ FEE</span>
       )}
@@ -104,7 +104,7 @@ function ProductModal({ open, onClose, product, onSuccess }) {
   useEffect(() => {
     if (open) {
       setForm(product
-        ? { ...product, fee_percent: product.fee_percent != null ? String(product.fee_percent) : '' }
+        ? { ...product, crm_type: product.crmType, value_key: product.valueKey, fee_percent: product.feePercent != null ? String(product.feePercent) : '' }
         : { crm_type: 'credito', name: '', value_key: '', fee_percent: '' }
       );
     }
@@ -121,14 +121,14 @@ function ProductModal({ open, onClose, product, onSuccess }) {
     try {
       const payload = {
         name: form.name,
-        value_key: form.value_key,
-        fee_percent: form.fee_percent === '' ? null : parseFloat(form.fee_percent),
+        valueKey: form.value_key,
+        feePercent: form.fee_percent === '' ? undefined : parseFloat(form.fee_percent),
       };
       if (isEdit) {
-        await api.updateProductCatalog(product.id, payload);
+        await api.updateProductCatalog(product._id, payload);
         toast.success('Produto atualizado');
       } else {
-        await api.createProductCatalog({ crm_type: form.crm_type, ...payload });
+        await api.createProductCatalog({ crmType: form.crm_type, ...payload });
         toast.success('Produto criado');
       }
       onSuccess();
@@ -234,9 +234,9 @@ export default function ProductCatalog() {
     } catch (err) { toast.error(err.message); }
   }
 
-  const filtered = filterCRM === 'all' ? products : products.filter(p => p.crm_type === filterCRM);
+  const filtered = filterCRM === 'all' ? products : products.filter(p => p.crmType === filterCRM);
   const grouped = CRM_OPTIONS.reduce((acc, crm) => {
-    acc[crm.value] = filtered.filter(p => p.crm_type === crm.value);
+    acc[crm.value] = filtered.filter(p => p.crmType === crm.value);
     return acc;
   }, {});
 
@@ -321,10 +321,10 @@ export default function ProductCatalog() {
                     </div>
                     <div className="divide-y divide-gray-50">
                       {items.map(p => (
-                        <div key={p.id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors">
+                        <div key={p._id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors">
                           <div className="flex-1 min-w-0">
                             <p className="font-sans font-semibold text-sm text-gray-800">{p.name}</p>
-                            <p className="font-mono text-xs text-gray-400 mt-0.5">{p.value_key}</p>
+                            <p className="font-mono text-xs text-gray-400 mt-0.5">{p.valueKey}</p>
                           </div>
 
                           {/* FEE inline */}
@@ -340,7 +340,7 @@ export default function ProductCatalog() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             </button>
-                            <button onClick={() => setConfirmDelete({ open: true, id: p.id, name: p.name })}
+                            <button onClick={() => setConfirmDelete({ open: true, id: p._id, name: p.name })}
                               className="p-1.5 rounded-lg transition-colors hover:bg-red-50" title="Excluir">
                               <svg className="w-4 h-4 text-gray-300 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

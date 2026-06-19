@@ -12,7 +12,7 @@ const PRIORITY_BG = { high: 'rgba(220,38,38,0.08)', medium: 'rgba(234,179,8,0.08
 const STATUSES = ['pending', 'in_progress', 'completed'];
 const STATUS_LABELS = { pending: 'Pendente', in_progress: 'Em andamento', completed: 'Concluída' };
 
-const emptyForm = { title: '', description: '', contact_id: '', due_date: '', priority: 'medium', status: 'pending' };
+const emptyForm = { title: '', description: '', contactId: '', dueDate: '', priority: 'medium', status: 'pending' };
 
 function PriorityDot({ priority }) {
   return <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: PRIORITY_COLORS[priority] }} />;
@@ -41,8 +41,8 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
       setForm(initial ? {
         ...emptyForm,
         ...initial,
-        contact_id: initial.contact_id || '',
-        due_date: initial.due_date || '',
+        contactId: initial.contactId || '',
+        dueDate: initial.dueDate || '',
         description: initial.description || '',
       } : emptyForm);
       setErrors({});
@@ -62,11 +62,15 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
     setSaving(true);
     try {
       const payload = {
-        ...form,
-        contact_id: form.contact_id || null,
+        title: form.title,
+        description: form.description || undefined,
+        dueDate: form.dueDate || undefined,
+        priority: form.priority,
+        status: form.status,
+        contactId: form.contactId || undefined,
       };
-      if (initial?.id) {
-        await api.updateTask(initial.id, payload);
+      if (initial?._id) {
+        await api.updateTask(initial._id, payload);
         toast.success('Tarefa atualizada');
       } else {
         await api.createTask(payload);
@@ -89,7 +93,7 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
   const blurHandler = (hasError) => (e) => { e.target.style.borderColor = hasError ? '#ef4444' : '#d9d9d6'; e.target.style.boxShadow = 'none'; };
 
   return (
-    <Modal open={open} onClose={onClose} title={initial?.id ? 'Editar Tarefa' : 'Nova Tarefa'} size="md">
+    <Modal open={open} onClose={onClose} title={initial?._id ? 'Editar Tarefa' : 'Nova Tarefa'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Título <span className="text-red-500">*</span></label>
@@ -121,21 +125,21 @@ function TaskFormModal({ open, onClose, initial, contacts, onSuccess }) {
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Contato</label>
             <select
-              value={form.contact_id}
-              onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
+              value={form.contactId}
+              onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
               style={{ color: 'var(--text-primary)' }}
             >
               <option value="">Nenhum</option>
-              {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {contacts.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Prazo</label>
             <input
               type="date"
-              value={form.due_date}
-              onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+              value={form.dueDate}
+              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
               style={{ color: 'var(--text-primary)' }}
               onFocus={focusHandler}
@@ -234,7 +238,7 @@ export default function Tasks() {
 
   const pending = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
   const completed = tasks.filter(t => t.status === 'completed');
-  const overdue = pending.filter(t => t.due_date && t.due_date < today);
+  const overdue = pending.filter(t => t.dueDate && t.dueDate < today);
 
   const filterButtons = [
     { value: '', label: 'Todas' },
@@ -301,11 +305,11 @@ export default function Tasks() {
       ) : (
         <div className="space-y-2">
           {tasks.map(task => {
-            const isOverdue = (task.status === 'pending' || task.status === 'in_progress') && task.due_date && task.due_date < today;
+            const isOverdue = (task.status === 'pending' || task.status === 'in_progress') && task.dueDate && task.dueDate < today;
             const isDone = task.status === 'completed';
             return (
               <div
-                key={task.id}
+                key={task._id}
                 className="bg-white rounded-xl border flex items-center gap-4 p-4 transition-all"
                 style={{
                   borderColor: isOverdue ? '#fca5a5' : '#d9d9d6',
@@ -316,7 +320,7 @@ export default function Tasks() {
                 {/* Toggle circle */}
                 <button
                   onClick={() => handleToggle(task)}
-                  disabled={toggling === task.id}
+                  disabled={toggling === task._id}
                   className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
                   style={{
                     backgroundColor: isDone ? '#355641' : 'transparent',
@@ -335,16 +339,15 @@ export default function Tasks() {
                     {task.title}
                   </p>
                   <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                    {task.contact_name && <span className="font-sans text-xs text-gray-400">{task.contact_name}</span>}
                     {task.description && <span className="font-sans text-xs text-gray-400 truncate max-w-xs">{task.description}</span>}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  {task.due_date && (
+                  {task.dueDate && (
                     <p className={`font-sans text-xs font-bold ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
                       {isOverdue && '⚠ '}
-                      {new Date(task.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                      {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                     </p>
                   )}
                   <PriorityBadge priority={task.priority} />
@@ -359,7 +362,7 @@ export default function Tasks() {
                     <svg className="w-4 h-4 text-gray-300 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   </button>
                   <button
-                    onClick={() => setConfirmDelete({ open: true, id: task.id, title: task.title })}
+                    onClick={() => setConfirmDelete({ open: true, id: task._id, title: task.title })}
                     className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
                     title="Excluir"
                   >

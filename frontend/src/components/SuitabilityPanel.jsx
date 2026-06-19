@@ -17,7 +17,7 @@ export default function SuitabilityPanel({ contact, onUpdate }) {
   async function updateField(field, value) {
     setSaving(true);
     try {
-      const updated = await api.updateSuitability(contact.id, { [field]: value });
+      const updated = await api.updateSuitability(contact._id, { [field]: value });
       if (onUpdate) onUpdate(updated);
     } catch (e) {
       console.error(e);
@@ -49,9 +49,9 @@ export default function SuitabilityPanel({ contact, onUpdate }) {
               {PROFILES.map(p => (
                 <button
                   key={p.key}
-                  onClick={() => updateField('investor_profile', p.key)}
+                  onClick={() => updateField('investorProfile', p.key)}
                   className={`px-3 py-2 rounded-lg border text-sm font-sans font-bold transition-all ${
-                    contact.investor_profile === p.key
+                    contact.investorProfile === p.key
                       ? p.color + ' border-2'
                       : 'bg-white border-brand-gray text-charcoal/50 hover:border-charcoal/40'
                   }`}
@@ -74,32 +74,32 @@ export default function SuitabilityPanel({ contact, onUpdate }) {
             <div>
               <p className="label">Horizonte de Liquidez</p>
               <InlineField
-                value={contact.liquidity_horizon}
-                onSave={v => updateField('liquidity_horizon', v)}
+                value={contact.liquidityHorizon}
+                onSave={v => updateField('liquidityHorizon', v)}
                 placeholder="ex: 5 anos"
               />
             </div>
             <div>
               <p className="label">Banco</p>
               <InlineField
-                value={contact.bank_name}
-                onSave={v => updateField('bank_name', v)}
+                value={contact.bankName}
+                onSave={v => updateField('bankName', v)}
                 placeholder="Nome do banco"
               />
             </div>
             <div>
               <p className="label">Agência</p>
               <InlineField
-                value={contact.bank_agency}
-                onSave={v => updateField('bank_agency', v)}
+                value={contact.bankAgency}
+                onSave={v => updateField('bankAgency', v)}
                 placeholder="0000"
               />
             </div>
             <div>
               <p className="label">Conta</p>
               <InlineField
-                value={contact.bank_account}
-                onSave={v => updateField('bank_account', v)}
+                value={contact.bankAccount}
+                onSave={v => updateField('bankAccount', v)}
                 placeholder="000000-0"
               />
             </div>

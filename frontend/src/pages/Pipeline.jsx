@@ -20,7 +20,7 @@ const STAGE_PROB = { prospecting: 10, qualificacao: 25, proposta: 50, negociacao
 
 const fmtCur = (v) => v ? `R$ ${Number(v).toLocaleString('pt-BR')}` : 'R$ 0';
 
-const emptyForm = { title: '', contact_id: '', value: '', stage: 'prospecting', probability: 10, expected_close: '', notes: '' };
+const emptyForm = { title: '', contactId: '', value: '', stage: 'prospecting', probability: 10, expectedClose: '', notes: '' };
 
 function ProbBar({ prob }) {
   const color = prob >= 75 ? '#355641' : prob >= 50 ? '#dd7752' : '#7A5137';
@@ -64,9 +64,9 @@ function DealCard({ deal, onDragStart, onAdvance, onReopen, onReopenFromActive, 
         <span className="font-sans text-xs text-gray-400">{deal.probability}%</span>
       </div>
       <ProbBar prob={deal.probability} />
-      {deal.expected_close && (
+      {deal.expectedClose && (
         <p className="font-sans text-xs text-gray-400 mt-1.5">
-          Fechamento: {new Date(deal.expected_close + 'T00:00:00').toLocaleDateString('pt-BR')}
+          Fechamento: {new Date(deal.expectedClose + 'T00:00:00').toLocaleDateString('pt-BR')}
         </p>
       )}
       <div className="mt-2">
@@ -112,7 +112,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
         ...emptyForm,
         ...initial,
         value: initial.value || '',
-        contact_id: initial.contact_id || '',
+        contactId: initial.contactId || '',
       } : emptyForm);
       setErrors({});
     }
@@ -131,13 +131,16 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
     setSaving(true);
     try {
       const payload = {
-        ...form,
+        title: form.title,
         value: form.value ? Number(form.value) : 0,
+        stage: form.stage,
         probability: parseInt(form.probability) || STAGE_PROB[form.stage] || 10,
-        contact_id: form.contact_id || null,
+        notes: form.notes || undefined,
+        expectedClose: form.expectedClose || undefined,
+        contactId: form.contactId || undefined,
       };
-      if (initial?.id) {
-        await api.updateDeal(initial.id, payload);
+      if (initial?._id) {
+        await api.updateDeal(initial._id, payload);
         toast.success('Negócio atualizado');
       } else {
         await api.createDeal(payload);
@@ -153,7 +156,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={initial?.id ? 'Editar Negócio' : 'Novo Negócio'} size="md">
+    <Modal open={open} onClose={onClose} title={initial?._id ? 'Editar Negócio' : 'Novo Negócio'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">
@@ -174,13 +177,13 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Contato</label>
             <select
-              value={form.contact_id}
-              onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
+              value={form.contactId}
+              onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
               style={{ color: 'var(--text-primary)' }}
             >
               <option value="">Nenhum</option>
-              {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {contacts.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
           <div>
@@ -220,8 +223,8 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Data de Fechamento</label>
             <input
               type="date"
-              value={form.expected_close}
-              onChange={e => setForm(f => ({ ...f, expected_close: e.target.value }))}
+              value={form.expectedClose}
+              onChange={e => setForm(f => ({ ...f, expectedClose: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
               style={{ color: 'var(--text-primary)' }}
               onFocus={e => { e.target.style.borderColor = '#355641'; e.target.style.boxShadow = '0 0 0 3px #35564115'; }}
@@ -255,7 +258,7 @@ function DealFormModal({ open, onClose, initial, contacts, onSuccess }) {
           >
             {saving ? (
               <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Salvando...</>
-            ) : (initial?.id ? 'Salvar alterações' : 'Criar negócio')}
+            ) : (initial?._id ? 'Salvar alterações' : 'Criar negócio')}
           </button>
         </div>
       </form>
@@ -315,7 +318,7 @@ export default function Pipeline() {
 
   async function handleReopenFromActive(deal) {
     try {
-      await api.updateDeal(deal.id, { ...deal, stage: 'negociacao', probability: 75 });
+      await api.updateDeal(deal._id, { stage: 'negociacao', probability: 75 });
       toast.success('Negócio reaberto para negociação');
       load();
     } catch (e) { toast.error(e.message); }
@@ -389,14 +392,14 @@ export default function Pipeline() {
               <div className="flex-1 overflow-y-auto px-2 pb-2">
                 {deals.map(deal => (
                   <DealCard
-                    key={deal.id}
+                    key={deal._id}
                     deal={deal}
                     onDragStart={() => { dragDealRef.current = deal; setDragDeal(deal); }}
                     onAdvance={() => handleAdvance(deal)}
                     onReopen={() => handleReopen(deal)}
                     onReopenFromActive={() => handleReopenFromActive(deal)}
                     onClick={() => setFormModal({ open: true, deal })}
-                    onDelete={() => setConfirmDelete({ open: true, id: deal.id, title: deal.title })}
+                    onDelete={() => setConfirmDelete({ open: true, id: deal._id, title: deal.title })}
                   />
                 ))}
                 {deals.length === 0 && (

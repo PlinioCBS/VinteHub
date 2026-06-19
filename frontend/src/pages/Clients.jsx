@@ -142,10 +142,16 @@ function EditClientModal({ open, onClose, client, onSuccess, isCredito }) {
     if (!form.name?.trim()) return;
     setSaving(true);
     try {
-      await api.updateContact(client.id, {
+      await api.updateContact(client._id, {
         ...form,
         aum: form.aum ? parseFloat(form.aum) : 0,
-        monthly_income: form.monthly_income ? parseFloat(form.monthly_income) : null,
+        monthlyIncome: form.monthlyIncome ? parseFloat(form.monthlyIncome) : undefined,
+        investorProfile: form.investorProfile || undefined,
+        maritalStatus: form.maritalStatus || undefined,
+        birthDate: form.birthDate || undefined,
+        bankName: form.bankName || undefined,
+        bankAgency: form.bankAgency || undefined,
+        taxRegime: form.taxRegime || undefined,
       });
       toast.success('Cliente atualizado');
       onSuccess();
@@ -171,8 +177,8 @@ function EditClientModal({ open, onClose, client, onSuccess, isCredito }) {
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Regime Tributário</label>
             <select
-              value={form.tax_regime || ''}
-              onChange={e => f('tax_regime', e.target.value)}
+              value={form.taxRegime || ''}
+              onChange={e => f('taxRegime', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
               style={{ color: 'var(--text-primary)' }}
             >
@@ -217,8 +223,8 @@ function EditClientModal({ open, onClose, client, onSuccess, isCredito }) {
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Perfil do Investidor</label>
             <select
-              value={form.investor_profile || ''}
-              onChange={e => f('investor_profile', e.target.value)}
+              value={form.investorProfile || ''}
+              onChange={e => f('investorProfile', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white"
               style={{ color: 'var(--text-primary)' }}
             >
@@ -227,11 +233,11 @@ function EditClientModal({ open, onClose, client, onSuccess, isCredito }) {
             </select>
           </div>
           <InputField label="Profissão" value={form.profession} onChange={v => f('profession', v)} />
-          <InputField label="Renda Mensal (R$)" type="number" value={form.monthly_income} onChange={v => f('monthly_income', v)} />
-          <InputField label="Estado Civil" value={form.marital_status} onChange={v => f('marital_status', v)} />
-          <InputField label="Data de Nascimento" type="date" value={form.birth_date} onChange={v => f('birth_date', v)} />
-          <InputField label="Banco" value={form.bank_name} onChange={v => f('bank_name', v)} />
-          <InputField label="Agência" value={form.bank_agency} onChange={v => f('bank_agency', v)} />
+          <InputField label="Renda Mensal (R$)" type="number" value={form.monthlyIncome} onChange={v => f('monthlyIncome', v)} />
+          <InputField label="Estado Civil" value={form.maritalStatus} onChange={v => f('maritalStatus', v)} />
+          <InputField label="Data de Nascimento" type="date" value={form.birthDate} onChange={v => f('birthDate', v)} />
+          <InputField label="Banco" value={form.bankName} onChange={v => f('bankName', v)} />
+          <InputField label="Agência" value={form.bankAgency} onChange={v => f('bankAgency', v)} />
           <div className="col-span-2">
             <InputField label="Endereço" value={form.address} onChange={v => f('address', v)} />
           </div>
@@ -262,33 +268,33 @@ function EditClientModal({ open, onClose, client, onSuccess, isCredito }) {
 function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 'credito' }) {
   const { toast } = useToast();
   const productTypes = PRODUCT_TYPES_BY_CRM[crmType] || PRODUCT_TYPES;
-  const emptyProduct = { product_type: productTypes[0]?.value || '', credit_value: '', contract_date: '', contract_number: '', group_number: '', quota_number: '', notes: '', taxa_percent: '' };
+  const emptyProduct = { productType: productTypes[0]?.value || '', creditValue: '', contractDate: '', contractNumber: '', groupNumber: '', quotaNumber: '', notes: '', taxaPercent: '' };
   const [form, setForm] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
   const isEdit = !!product;
 
   useEffect(() => {
-    if (open) setForm(isEdit ? { ...product, taxa_percent: product.taxa_percent ?? '' } : { ...emptyProduct, product_type: productTypes[0]?.value || '' });
+    if (open) setForm(isEdit ? { ...product, taxaPercent: product.taxaPercent ?? '' } : { ...emptyProduct, productType: productTypes[0]?.value || '' });
   }, [open, product, crmType]);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.product_type) return;
+    if (!form.productType) return;
     setSaving(true);
     try {
       const payload = {
-        contact_id: contactId,
-        crm_type: crmType,
-        product_type: form.product_type,
-        credit_value: form.credit_value ? parseFloat(String(form.credit_value).replace(/\./g, '').replace(',', '.')) : 0,
-        contract_date: form.contract_date || null,
-        contract_number: form.contract_number || null,
-        group_number: form.group_number || null,
-        quota_number: form.quota_number || null,
-        notes: form.notes || null,
-        taxa_percent: form.taxa_percent !== '' && form.taxa_percent != null ? parseFloat(form.taxa_percent) : null,
+        contactId,
+        crmType,
+        productType: form.productType,
+        creditValue: form.creditValue ? parseFloat(String(form.creditValue).replace(/\./g, '').replace(',', '.')) : 0,
+        contractDate: form.contractDate || undefined,
+        contractNumber: form.contractNumber || undefined,
+        groupNumber: form.groupNumber || undefined,
+        quotaNumber: form.quotaNumber || undefined,
+        notes: form.notes || undefined,
+        taxaPercent: form.taxaPercent !== '' && form.taxaPercent != null ? parseFloat(form.taxaPercent) : undefined,
       };
-      if (isEdit) await api.updateProduct(product.id, payload);
+      if (isEdit) await api.updateProduct(product._id, payload);
       else await api.createProduct(payload);
       toast.success(isEdit ? 'Produto atualizado' : 'Produto adicionado');
       onSuccess();
@@ -314,13 +320,13 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
           <div className="grid grid-cols-2 gap-2">
             {productTypes.map(pt => (
               <button key={pt.value} type="button"
-                onClick={() => f('product_type', pt.value)}
+                onClick={() => f('productType', pt.value)}
                 className="px-3 py-2.5 rounded-xl border font-sans text-sm font-medium transition-all text-left"
                 style={{
-                  backgroundColor: form.product_type === pt.value ? ACCENT + '15' : 'var(--bg-page)',
-                  borderColor: form.product_type === pt.value ? ACCENT : '#e5e7eb',
-                  color: form.product_type === pt.value ? ACCENT : '#6b7280',
-                  fontWeight: form.product_type === pt.value ? 700 : 400,
+                  backgroundColor: form.productType === pt.value ? ACCENT + '15' : 'var(--bg-page)',
+                  borderColor: form.productType === pt.value ? ACCENT : '#e5e7eb',
+                  color: form.productType === pt.value ? ACCENT : '#6b7280',
+                  fontWeight: form.productType === pt.value ? 700 : 400,
                 }}
               >
                 {pt.label}
@@ -338,8 +344,8 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
               type="number"
               step="0.01"
               min="0"
-              value={form.credit_value || ''}
-              onChange={e => f('credit_value', e.target.value)}
+              value={form.creditValue || ''}
+              onChange={e => f('creditValue', e.target.value)}
               placeholder="0,00"
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
               style={{ color: 'var(--text-primary)' }}
@@ -353,7 +359,7 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
           {/* Nº Contrato */}
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Nº Contrato</label>
-            <input type="text" value={form.contract_number || ''} onChange={e => f('contract_number', e.target.value)}
+            <input type="text" value={form.contractNumber || ''} onChange={e => f('contractNumber', e.target.value)}
               placeholder="Ex: 100215363"
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all font-mono"
               style={{ color: 'var(--text-primary)' }}
@@ -366,7 +372,7 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
           {/* Data do Contrato */}
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Data do Contrato</label>
-            <input type="date" value={form.contract_date || ''} onChange={e => f('contract_date', e.target.value)}
+            <input type="date" value={form.contractDate || ''} onChange={e => f('contractDate', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
               style={{ color: 'var(--text-primary)' }}
               onFocus={e => { e.target.style.borderColor = ACCENT; e.target.style.boxShadow = `0 0 0 3px ${ACCENT}15`; }}
@@ -377,7 +383,7 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
           {/* Grupo */}
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Grupo</label>
-            <input type="text" value={form.group_number || ''} onChange={e => f('group_number', e.target.value)}
+            <input type="text" value={form.groupNumber || ''} onChange={e => f('groupNumber', e.target.value)}
               placeholder="Ex: AF350"
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all font-mono"
               style={{ color: 'var(--text-primary)' }}
@@ -389,7 +395,7 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
           {/* Cota */}
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Cota</label>
-            <input type="text" value={form.quota_number || ''} onChange={e => f('quota_number', e.target.value)}
+            <input type="text" value={form.quotaNumber || ''} onChange={e => f('quotaNumber', e.target.value)}
               placeholder="Ex: 281"
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all font-mono"
               style={{ color: 'var(--text-primary)' }}
@@ -411,8 +417,8 @@ function ProductModal({ open, onClose, contactId, product, onSuccess, crmType = 
               step="0.01"
               min="0"
               max="100"
-              value={form.taxa_percent ?? ''}
-              onChange={e => f('taxa_percent', e.target.value)}
+              value={form.taxaPercent ?? ''}
+              onChange={e => f('taxaPercent', e.target.value)}
               placeholder="Ex: 1.5"
               className="w-full pr-8 pl-3 py-2.5 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
               style={{ color: 'var(--text-primary)' }}
@@ -511,34 +517,34 @@ function ProductsPanel({ contactId, onProductChange, crmType = 'credito' }) {
       ) : (
         <div className="space-y-2">
           {products.map(p => (
-            <div key={p.id} className="rounded-xl border p-3" style={{ backgroundColor: ACCENT + '08', borderColor: ACCENT + '30' }}>
+            <div key={p._id} className="rounded-xl border p-3" style={{ backgroundColor: ACCENT + '08', borderColor: ACCENT + '30' }}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-sans text-xs font-bold" style={{ color: ACCENT }}>
-                      {productLabels[p.product_type] || PRODUCT_LABELS[p.product_type] || p.product_type}
+                      {productLabels[p.productType] || PRODUCT_LABELS[p.productType] || p.productType}
                     </span>
-                    {p.contract_number && (
+                    {p.contractNumber && (
                       <span className="font-mono text-xs px-2 py-0.5 rounded bg-white border font-semibold" style={{ borderColor: ACCENT + '30', color: ACCENT }}>
-                        #{p.contract_number}
+                        #{p.contractNumber}
                       </span>
                     )}
                   </div>
-                  {(p.group_number || p.quota_number) && (
+                  {(p.groupNumber || p.quotaNumber) && (
                     <div className="flex items-center gap-2 mt-0.5">
-                      {p.group_number && <span className="font-sans text-xs text-gray-500">Grupo: <b>{p.group_number}</b></span>}
-                      {p.quota_number && <span className="font-sans text-xs text-gray-500">Cota: <b>{p.quota_number}</b></span>}
+                      {p.groupNumber && <span className="font-sans text-xs text-gray-500">Grupo: <b>{p.groupNumber}</b></span>}
+                      {p.quotaNumber && <span className="font-sans text-xs text-gray-500">Cota: <b>{p.quotaNumber}</b></span>}
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    {p.credit_value > 0 && (
+                    {p.creditValue > 0 && (
                       <span className="font-serif text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {fmtCur(p.credit_value)}
+                        {fmtCur(p.creditValue)}
                       </span>
                     )}
-                    {p.contract_date && (
+                    {p.contractDate && (
                       <span className="font-sans text-xs text-gray-400">
-                        {new Date(p.contract_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                        {new Date(p.contractDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                       </span>
                     )}
                   </div>
@@ -551,7 +557,7 @@ function ProductsPanel({ contactId, onProductChange, crmType = 'credito' }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => setConfirmDelete({ open: true, id: p.id })}
+                  <button onClick={() => setConfirmDelete({ open: true, id: p._id })}
                     className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Excluir">
                     <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -586,9 +592,9 @@ function ProductsPanel({ contactId, onProductChange, crmType = 'credito' }) {
 
 // ─── Modal Criar Cliente ──────────────────────────────────────────────────────
 const emptyClientForm = {
-  name: '', email: '', phone: '', company: '', aum: '', investor_profile: '',
-  monthly_income: '', profession: '', notes: '', status: 'cliente',
-  cpf: '', tax_regime: '', state: ''
+  name: '', email: '', phone: '', company: '', aum: '', investorProfile: '',
+  monthlyIncome: '', profession: '', notes: '', status: 'cliente',
+  cpf: '', taxRegime: '', state: ''
 };
 
 function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
@@ -615,10 +621,19 @@ function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
     setSaving(true);
     try {
       await api.createContact({
-        ...form,
+        name: form.name,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        company: form.company || undefined,
+        notes: form.notes || undefined,
+        profession: form.profession || undefined,
+        cpf: form.cpf || undefined,
+        state: form.state || undefined,
         status: 'cliente',
         aum: form.aum ? Number(form.aum) : 0,
-        monthly_income: form.monthly_income ? Number(form.monthly_income) : null,
+        investorProfile: form.investorProfile || undefined,
+        monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
+        taxRegime: form.taxRegime || undefined,
       });
       toast.success('Cliente criado');
       onSuccess();
@@ -652,7 +667,7 @@ function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
           <InputField label="CPF" value={form.cpf} onChange={v => f('cpf', maskCPF(v))} placeholder="000.000.000-00" />
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Regime Tributário</label>
-            <select value={form.tax_regime || ''} onChange={e => f('tax_regime', e.target.value)}
+            <select value={form.taxRegime || ''} onChange={e => f('taxRegime', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white" style={{ color: 'var(--text-primary)' }}>
               <option value="">Não definido</option>
               {TAX_REGIMES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -672,7 +687,7 @@ function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
           </div>
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Perfil do Investidor</label>
-            <select value={form.investor_profile} onChange={e => f('investor_profile', e.target.value)}
+            <select value={form.investorProfile} onChange={e => f('investorProfile', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none bg-white" style={{ color: 'var(--text-primary)' }}>
               <option value="">Não definido</option>
               {INVESTOR_PROFILES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -680,7 +695,7 @@ function CreateClientModal({ open, onClose, onSuccess, activeCRM }) {
           </div>
           <div>
             <label className="block font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Renda Mensal (R$)</label>
-            <CurrencyInput value={form.monthly_income} onChange={v => f('monthly_income', v)} placeholder="R$ 0,00" />
+            <CurrencyInput value={form.monthlyIncome} onChange={v => f('monthlyIncome', v)} placeholder="R$ 0,00" />
           </div>
           <InputField label="Profissão" value={form.profession} onChange={v => f('profession', v)} />
         </div>
@@ -768,7 +783,7 @@ export default function Clients() {
     } catch (e) { console.error(e); }
   }
 
-  const totalUSD = isInvestimento ? clients.reduce((s, c) => s + (parseFloat(c.aum_usd) || 0), 0) : 0;
+  const totalUSD = isInvestimento ? clients.reduce((s, c) => s + (parseFloat(c.aumUsd) || 0), 0) : 0;
 
   async function handleSaveFee(val) {
     try {
@@ -788,13 +803,13 @@ export default function Clients() {
   async function handleUpdateAUM(clientId, aum) {
     await api.updateAUM(clientId, parseFloat(aum));
     load();
-    if (journey?.id === clientId) loadJourney(clientId);
+    if (journey?._id === clientId) loadJourney(clientId);
   }
 
   async function handleUpdateSuitability(clientId, data) {
     await api.updateSuitability(clientId, data);
     load();
-    if (journey?.id === clientId) loadJourney(clientId);
+    if (journey?._id === clientId) loadJourney(clientId);
   }
 
   async function handleLogActivity(e) {
@@ -804,7 +819,7 @@ export default function Clients() {
       toast.success('Atividade registrada');
       setActivityForm({ show: false, clientId: null, description: '', type: 'reuniao' });
       load();
-      if (journey?.id === activityForm.clientId) loadJourney(activityForm.clientId);
+      if (journey?._id === activityForm.clientId) loadJourney(activityForm.clientId);
     } catch (err) { toast.error(err.message); }
   }
 
@@ -895,7 +910,7 @@ export default function Clients() {
           <div className="card p-5 flex flex-col gap-1">
             <p className="label">AUM Total USD</p>
             <p className="font-serif text-2xl text-charcoal">$ {fmtNum(totalUSD)}</p>
-            <p className="text-xs text-charcoal/40">{clients.filter(c => (c.aum_usd || 0) > 0).length} clientes com posição</p>
+            <p className="text-xs text-charcoal/40">{clients.filter(c => (c.aumUsd || 0) > 0).length} clientes com posição</p>
           </div>
         </div>
       )}
@@ -926,10 +941,10 @@ export default function Clients() {
               <div className="mt-4">
                 <TeamLocationMap
                   people={clients.map(c => ({
-                    id: c.id,
+                    id: c._id,
                     name: c.name,
                     state: c.state,
-                    subtitle: isMaster ? (c.consultant_name || c.company || null) : (c.company || null),
+                    subtitle: isMaster ? (c.consultantName || c.company || null) : (c.company || null),
                   }))}
                   legendLabel="Cliente localizado"
                   avatarColor={ACCENT}
@@ -982,13 +997,13 @@ export default function Clients() {
                 </div>
               </td></tr>
             ) : filteredClients.map(c => {
-              const profileColor = PROFILE_COLORS[c.investor_profile] || '#d9d9d6';
+              const profileColor = PROFILE_COLORS[c.investorProfile] || '#d9d9d6';
               return (
                 <tr
-                  key={c.id}
+                  key={c._id}
                   className="border-b cursor-pointer transition-colors hover:bg-gray-50"
                   style={{ borderColor: '#d9d9d6' }}
-                  onClick={() => loadJourney(c.id)}
+                  onClick={() => loadJourney(c._id)}
                 >
                   <td className="px-5 py-3">
                     <p className="font-sans font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{c.name}</p>
@@ -999,7 +1014,7 @@ export default function Clients() {
                     {hasProducts ? (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold font-sans"
                         style={{ backgroundColor: ACCENT + '15', color: ACCENT }}>
-                        {c.product_count > 0 ? `${c.product_count} produto${c.product_count > 1 ? 's' : ''}` : '+ Produto'}
+                        {c.productCount > 0 ? `${c.productCount} produto${c.productCount > 1 ? 's' : ''}` : '+ Produto'}
                       </span>
                     ) : (
                       <span className="font-sans text-sm font-bold" style={{ color: c.aum ? 'var(--text-primary)' : 'var(--text-hint)' }}>
@@ -1009,17 +1024,17 @@ export default function Clients() {
                   </td>
                   {isInvestimento && (
                     <td className="px-5 py-3">
-                      <EditableUSD value={c.aum_usd || 0} onSave={v => handleSaveAumUsd(c.id, v)} />
+                      <EditableUSD value={c.aumUsd || 0} onSave={v => handleSaveAumUsd(c._id, v)} />
                     </td>
                   )}
                   <td className="px-5 py-3">
-                    {c.investor_profile ? (
+                    {c.investorProfile ? (
                       <span className="inline-block text-xs px-2 py-0.5 rounded-full font-bold font-sans" style={{ backgroundColor: profileColor + '20', color: profileColor }}>
-                        {PROFILE_LABELS[c.investor_profile]}
+                        {PROFILE_LABELS[c.investorProfile]}
                       </span>
                     ) : <span className="text-gray-300 text-sm">—</span>}
                   </td>
-                  <td className="px-5 py-3 font-sans text-xs text-gray-500 capitalize">{c.crm_type || '—'}</td>
+                  <td className="px-5 py-3 font-sans text-xs text-gray-500 capitalize">{c.crmType || '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                       <button
@@ -1030,14 +1045,14 @@ export default function Clients() {
                         <svg className="w-4 h-4 text-gray-400 hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
                       <button
-                        onClick={() => setConfirmInactivate({ open: true, id: c.id, name: c.name })}
+                        onClick={() => setConfirmInactivate({ open: true, id: c._id, name: c.name })}
                         className="p-1.5 rounded-lg transition-colors hover:bg-orange-50"
                         title="Inativar"
                       >
                         <svg className="w-4 h-4 text-gray-300 hover:text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                       </button>
                       <button
-                        onClick={() => setConfirmDelete({ open: true, id: c.id, name: c.name })}
+                        onClick={() => setConfirmDelete({ open: true, id: c._id, name: c.name })}
                         className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
                         title="Excluir"
                       >
@@ -1060,21 +1075,21 @@ export default function Clients() {
               <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(124,58,237,0.08)' }}>
                 <p className="font-sans text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>Tipo de Crédito Contratado</p>
                 <InlineField value={journey.aum}
-                  onSave={async v => { await handleUpdateAUM(journey.id, v); loadJourney(journey.id); }}
+                  onSave={async v => { await handleUpdateAUM(journey._id, v); loadJourney(journey._id); }}
                   className="font-sans text-base font-bold" style={{ color: 'var(--text-primary)' }} placeholder="Ex: Consórcio" />
               </div>
             ) : (
               <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(53,86,65,0.08)' }}>
                 <p className="font-sans text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">AUM do Cliente</p>
                 <InlineField value={journey.aum}
-                  onSave={async v => { await handleUpdateAUM(journey.id, v); loadJourney(journey.id); }}
+                  onSave={async v => { await handleUpdateAUM(journey._id, v); loadJourney(journey._id); }}
                   type="number" prefix="R$ " className="font-serif text-3xl font-bold" style={{ color: 'var(--text-primary)' }} placeholder="0" />
               </div>
             )}
             {!hasProducts && <RevenueClientPanel aum={journey.aum} fee={journey.fee || fee} />}
             {hasProducts && (
               <div className="rounded-xl border p-4" style={{ borderColor: ACCENT + '30' }}>
-                <ProductsPanel contactId={journey.id} crmType={activeCRM} />
+                <ProductsPanel contactId={journey._id} crmType={activeCRM} />
               </div>
             )}
             <ClientDataPanel contact={journey} onUpdate={updated => setJourney(j => ({ ...j, ...updated }))} />
@@ -1085,12 +1100,12 @@ export default function Clients() {
                 <p className="font-sans font-bold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Histórico da Jornada</p>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {journey.activities.map(a => (
-                    <div key={a.id} className="flex gap-3">
+                    <div key={a._id} className="flex gap-3">
                       <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: '#dd7752' }} />
                       <div>
                         <p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{a.description}</p>
                         <p className="font-sans text-xs text-gray-400">
-                          {new Date(a.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(a._creationTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     </div>
@@ -1098,30 +1113,30 @@ export default function Clients() {
                 </div>
               </div>
             )}
-            <CalendarWidget contactId={journey.id} />
+            <CalendarWidget contactId={journey._id} />
 
             {/* Ações da jornada */}
             <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
               <button
-                onClick={() => setActivityForm({ show: true, clientId: journey.id, description: '', type: 'reuniao' })}
+                onClick={() => setActivityForm({ show: true, clientId: journey._id, description: '', type: 'reuniao' })}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium border transition-all hover:bg-gray-50"
                 style={{ borderColor: '#d9d9d6', color: 'var(--text-primary)' }}>
                 + Atividade
               </button>
               <button
-                onClick={() => { handleRenewal(journey.id); setJourney(null); }}
-                disabled={renewalLoading === journey.id}
+                onClick={() => { handleRenewal(journey._id); setJourney(null); }}
+                disabled={renewalLoading === journey._id}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium border transition-all hover:bg-gray-50 disabled:opacity-50"
                 style={{ borderColor: '#d9d9d6', color: 'var(--text-primary)' }}>
-                {renewalLoading === journey.id ? '...' : '↩ Renovar'}
+                {renewalLoading === journey._id ? '...' : '↩ Renovar'}
               </button>
               <button
-                onClick={() => { setConfirmInactivate({ open: true, id: journey.id, name: journey.name }); setJourney(null); }}
+                onClick={() => { setConfirmInactivate({ open: true, id: journey._id, name: journey.name }); setJourney(null); }}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium border border-orange-200 text-orange-600 hover:bg-orange-50 transition-all">
                 Inativar
               </button>
               <button
-                onClick={() => { setConfirmDelete({ open: true, id: journey.id, name: journey.name }); setJourney(null); }}
+                onClick={() => { setConfirmDelete({ open: true, id: journey._id, name: journey.name }); setJourney(null); }}
                 className="px-4 py-2 rounded-xl font-sans text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-all">
                 Excluir
               </button>

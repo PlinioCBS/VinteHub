@@ -33,7 +33,7 @@ const INVESTOR_PROFILES = [
 
 const emptyForm = {
   name: '', email: '', phone: '', company: '', status: 'prospecting',
-  aum: '', investor_profile: '', monthly_income: '', profession: '', notes: ''
+  aum: '', investorProfile: '', monthlyIncome: '', profession: '', notes: ''
 };
 
 function Badge({ status }) {
@@ -124,7 +124,7 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
 
   useEffect(() => {
     if (open) {
-      setForm(initial ? { ...emptyForm, ...initial, aum: initial.aum || '', monthly_income: initial.monthly_income || '' } : emptyForm);
+      setForm(initial ? { ...emptyForm, ...initial, aum: initial.aum || '', monthlyIncome: initial.monthlyIncome || '' } : emptyForm);
       setErrors({});
     }
   }, [open, initial]);
@@ -143,12 +143,19 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
     setSaving(true);
     try {
       const payload = {
-        ...form,
+        name: form.name.trim(),
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        company: form.company || undefined,
+        status: form.status,
+        notes: form.notes || undefined,
         aum: form.aum ? Number(form.aum) : 0,
-        monthly_income: form.monthly_income ? Number(form.monthly_income) : null,
+        investorProfile: form.investorProfile || undefined,
+        monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
+        profession: form.profession || undefined,
       };
-      if (initial?.id) {
-        await api.updateContact(initial.id, payload);
+      if (initial?._id) {
+        await api.updateContact(initial._id, payload);
         toast.success('Contato atualizado');
       } else {
         await api.createContact(payload);
@@ -166,7 +173,7 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
   const isCliente = form.status === 'cliente';
 
   return (
-    <Modal open={open} onClose={onClose} title={initial?.id ? 'Editar Contato' : 'Novo Contato'} size="lg">
+    <Modal open={open} onClose={onClose} title={initial?._id ? 'Editar Contato' : 'Novo Contato'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Nome" required error={errors.name}>
@@ -195,7 +202,7 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
             <TextInput value={form.profession} onChange={v => setForm(f => ({ ...f, profession: v }))} />
           </FormField>
           <FormField label="Renda Mensal (R$)">
-            <CurrencyInput value={form.monthly_income} onChange={v => setForm(f => ({ ...f, monthly_income: v }))} placeholder="R$ 0,00" />
+            <CurrencyInput value={form.monthlyIncome} onChange={v => setForm(f => ({ ...f, monthlyIncome: v }))} placeholder="R$ 0,00" />
           </FormField>
           {isCliente && (
             <>
@@ -204,8 +211,8 @@ function ContactFormModal({ open, onClose, initial, onSuccess }) {
               </FormField>
               <FormField label="Perfil do Investidor">
                 <select
-                  value={form.investor_profile}
-                  onChange={e => setForm(f => ({ ...f, investor_profile: e.target.value }))}
+                  value={form.investorProfile}
+                  onChange={e => setForm(f => ({ ...f, investorProfile: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 font-sans text-sm outline-none transition-all"
                   style={{ color: 'var(--text-primary)' }}
                 >
@@ -387,10 +394,10 @@ export default function Contacts() {
               </td></tr>
             ) : contacts.map(c => (
               <tr
-                key={c.id}
+                key={c._id}
                 className="border-b cursor-pointer transition-colors hover:bg-gray-50"
                 style={{ borderColor: '#d9d9d6' }}
-                onClick={() => loadContact(c.id)}
+                onClick={() => loadContact(c._id)}
               >
                 <td className="px-5 py-3">
                   <p className="font-sans font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{c.name}</p>
@@ -408,12 +415,12 @@ export default function Contacts() {
                     <Badge status={c.status} />
                     {nextStatus(c.status) && c.status !== 'cliente' && (
                       <button
-                        onClick={e => handleAdvance(c.id, e)}
-                        disabled={advancing === c.id}
+                        onClick={e => handleAdvance(c._id, e)}
+                        disabled={advancing === c._id}
                         className="text-xs font-bold transition-colors hover:opacity-70"
                         style={{ color: '#dd7752' }}
                       >
-                        {advancing === c.id ? '...' : `→ ${STATUS_LABELS[nextStatus(c.status)]}`}
+                        {advancing === c._id ? '...' : `→ ${STATUS_LABELS[nextStatus(c.status)]}`}
                       </button>
                     )}
                   </div>
@@ -421,7 +428,7 @@ export default function Contacts() {
                 <td className="px-5 py-3 font-sans text-sm" style={{ color: c.aum ? 'var(--text-primary)' : 'var(--text-hint)', fontWeight: c.aum ? 'bold' : 'normal' }}>
                   {fmtAUM(c.aum)}
                 </td>
-                <td className="px-5 py-3 font-sans text-xs text-gray-400">{fmtDate(c.created_at)}</td>
+                <td className="px-5 py-3 font-sans text-xs text-gray-400">{fmtDate(c._creationTime)}</td>
                 <td className="px-5 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button
@@ -432,7 +439,7 @@ export default function Contacts() {
                       <svg className="w-4 h-4 text-gray-400 hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); setConfirmDelete({ open: true, id: c.id, name: c.name }); }}
+                      onClick={e => { e.stopPropagation(); setConfirmDelete({ open: true, id: c._id, name: c.name }); }}
                       className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
                       title="Excluir"
                     >
@@ -458,7 +465,7 @@ export default function Contacts() {
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">AUM</p>
                 <p className="font-serif font-bold" style={{ color: 'var(--text-primary)' }}>{fmtAUM(viewContact.aum)}</p>
               </div>
-              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Perfil</p><p className="font-sans text-sm capitalize" style={{ color: 'var(--text-primary)' }}>{viewContact.investor_profile || '—'}</p></div>
+              <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Perfil</p><p className="font-sans text-sm capitalize" style={{ color: 'var(--text-primary)' }}>{viewContact.investorProfile || '—'}</p></div>
               <div>
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
                 <div className="flex items-center gap-2">
@@ -467,7 +474,7 @@ export default function Contacts() {
                 </div>
               </div>
               {viewContact.profession && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Profissão</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{viewContact.profession}</p></div>}
-              {viewContact.monthly_income && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Renda Mensal</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{fmtAUM(viewContact.monthly_income)}</p></div>}
+              {viewContact.monthlyIncome && <div><p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Renda Mensal</p><p className="font-sans text-sm" style={{ color: 'var(--text-primary)' }}>{fmtAUM(viewContact.monthlyIncome)}</p></div>}
             </div>
 
             {viewContact.deals?.length > 0 && (
@@ -475,7 +482,7 @@ export default function Contacts() {
                 <p className="font-sans text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Negócios</p>
                 <div className="space-y-1">
                   {viewContact.deals.map(d => (
-                    <div key={d.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-page)' }}>
+                    <div key={d._id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-page)' }}>
                       <span className="font-sans" style={{ color: 'var(--text-primary)' }}>{d.title}</span>
                       <div className="flex items-center gap-3">
                         <span className="font-sans text-xs text-gray-400">{STATUS_LABELS[d.stage] || d.stage}</span>
@@ -489,21 +496,21 @@ export default function Contacts() {
 
             {nextStatus(viewContact.status) && viewContact.status !== 'cliente' && (
               <button
-                onClick={e => handleAdvance(viewContact.id, e)}
-                disabled={advancing === viewContact.id}
+                onClick={e => handleAdvance(viewContact._id, e)}
+                disabled={advancing === viewContact._id}
                 className="w-full py-2.5 rounded-xl font-sans text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-all"
                 style={{ backgroundColor: '#dd7752' }}
               >
-                {advancing === viewContact.id ? 'Avançando...' : `→ Avançar para ${STATUS_LABELS[nextStatus(viewContact.status)]}`}
+                {advancing === viewContact._id ? 'Avançando...' : `→ Avançar para ${STATUS_LABELS[nextStatus(viewContact.status)]}`}
               </button>
             )}
 
             <BriefingPanel contact={viewContact} onUpdate={c => setViewContact(c)} />
-            <CalendarWidget contactId={viewContact.id} />
+            <CalendarWidget contactId={viewContact._id} />
 
             <div className="flex justify-between items-center pt-2">
               <button
-                onClick={() => { setConfirmDelete({ open: true, id: viewContact.id, name: viewContact.name }); setViewContact(null); }}
+                onClick={() => { setConfirmDelete({ open: true, id: viewContact._id, name: viewContact.name }); setViewContact(null); }}
                 className="px-4 py-2 rounded-xl border font-sans text-sm font-medium text-red-500 border-red-200 hover:bg-red-50 transition-all"
               >
                 Excluir contato

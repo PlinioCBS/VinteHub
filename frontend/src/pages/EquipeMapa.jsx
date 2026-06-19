@@ -25,10 +25,10 @@ export default function EquipeMapa() {
   }, [isMaster]);
 
   const people = users.map(u => ({
-    id: u.id,
+    id: u._id,
     name: u.name,
     state: u.state,
-    photo_url: u.photo_url,
+    photo_url: u.photoUrl,
     subtitle: u.role === 'master' ? 'Master' : 'Consultor',
   }));
 

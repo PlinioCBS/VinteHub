@@ -22,7 +22,7 @@ export default function Calendar() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [creating, setCreating] = useState(false);
   const [contacts, setContacts] = useState([]);
-  const [form, setForm] = useState({ title:'', description:'', date:'', time:'09:00', duration:60, contact_id:'' });
+  const [form, setForm] = useState({ title:'', description:'', date:'', time:'09:00', duration:60, contactId:'' });
 
   useEffect(() => {
     loadStatus();
@@ -65,12 +65,12 @@ export default function Calendar() {
       await api.createEvent({
         title: form.title,
         description: form.description,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        contact_id: form.contact_id || null
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        contactId: form.contactId || undefined,
       });
       setCreating(false);
-      setForm({ title:'', description:'', date:'', time:'09:00', duration:60, contact_id:'' });
+      setForm({ title:'', description:'', date:'', time:'09:00', duration:60, contactId:'' });
       loadEvents();
     } catch (err) { alert('Erro ao criar evento: ' + err.message); }
   }
@@ -91,7 +91,7 @@ export default function Calendar() {
   function getEventsForDay(day) {
     if (!day) return [];
     const dateStr = `${current.year}-${String(current.month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    return events.filter(e => e.start_time && e.start_time.startsWith(dateStr));
+    return events.filter(e => e.startTime && e.startTime.startsWith(dateStr));
   }
 
   function openCreateForDay(day) {
@@ -102,7 +102,7 @@ export default function Calendar() {
 
   const selectedEvents = selectedDay ? getEventsForDay(selectedDay) : [];
   const upcomingEvents = events
-    .filter(e => e.start_time >= new Date().toISOString())
+    .filter(e => e.startTime >= new Date().toISOString())
     .slice(0, 10);
 
   return (
@@ -175,7 +175,7 @@ export default function Calendar() {
                     <>
                       <span className={`text-xs font-bold block mb-1 ${isToday ? 'text-green' : isSelected ? 'text-copper' : 'text-charcoal/70'}`}>{day}</span>
                       {dayEvents.slice(0,3).map(ev => (
-                        <div key={ev.id} className="text-xs bg-green text-white rounded px-1 py-0.5 mb-0.5 truncate">{ev.title}</div>
+                        <div key={ev._id} className="text-xs bg-green text-white rounded px-1 py-0.5 mb-0.5 truncate">{ev.title}</div>
                       ))}
                       {dayEvents.length > 3 && <div className="text-xs text-charcoal/40">+{dayEvents.length - 3}</div>}
                     </>
@@ -203,20 +203,20 @@ export default function Calendar() {
               ) : (
                 <div className="space-y-2">
                   {selectedEvents.map(ev => (
-                    <div key={ev.id} className="border border-brand-gray rounded-lg p-3">
+                    <div key={ev._id} className="border border-brand-gray rounded-lg p-3">
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="text-sm font-bold text-charcoal">{ev.title}</p>
-                          {ev.contact_name && <p className="text-xs text-charcoal/50">{ev.contact_name}</p>}
-                          {ev.start_time && (
+                          {ev.title && <p className="text-xs text-charcoal/50">{ev.title}</p>}
+                          {ev.startTime && (
                             <p className="text-xs text-charcoal/40">
-                              {new Date(ev.start_time).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}
-                              {ev.end_time && ` – ${new Date(ev.end_time).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`}
+                              {new Date(ev.startTime).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}
+                              {ev.endTime && ` – ${new Date(ev.endTime).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`}
                             </p>
                           )}
                           {ev.description && <p className="text-xs text-charcoal/60 mt-1">{ev.description}</p>}
                         </div>
-                        <button onClick={() => handleDeleteEvent(ev.id)} className="text-red-400 hover:text-red-600 text-xs p-1">✕</button>
+                        <button onClick={() => handleDeleteEvent(ev._id)} className="text-red-400 hover:text-red-600 text-xs p-1">✕</button>
                       </div>
                     </div>
                   ))}
@@ -233,14 +233,14 @@ export default function Calendar() {
             ) : (
               <div className="space-y-2">
                 {upcomingEvents.map(ev => (
-                  <div key={ev.id} className="flex items-start gap-2 text-xs border-b border-brand-gray pb-2 last:border-0">
+                  <div key={ev._id} className="flex items-start gap-2 text-xs border-b border-brand-gray pb-2 last:border-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-copper mt-1.5 flex-shrink-0" />
                     <div>
                       <p className="font-bold text-charcoal">{ev.title}</p>
                       <p className="text-charcoal/40">
-                        {ev.start_time ? new Date(ev.start_time).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' às ' + new Date(ev.start_time).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—'}
+                        {ev.startTime ? new Date(ev.startTime).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' às ' + new Date(ev.startTime).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—'}
                       </p>
-                      {ev.contact_name && <p className="text-charcoal/40">{ev.contact_name}</p>}
+                      {ev.title && <p className="text-charcoal/40">{ev.title}</p>}
                     </div>
                   </div>
                 ))}
@@ -271,9 +271,9 @@ export default function Calendar() {
           </div>
           <div>
             <label className="label">Contato vinculado</label>
-            <select value={form.contact_id} onChange={e => setForm(f => ({...f, contact_id: e.target.value}))} className="input-field">
+            <select value={form.contactId} onChange={e => setForm(f => ({...f, contactId: e.target.value}))} className="input-field">
               <option value="">Nenhum</option>
-              {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {contacts.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
           <div><label className="label">Descrição</label><textarea rows={2} value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} className="input-field resize-none" /></div>

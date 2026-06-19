@@ -112,19 +112,19 @@ export default function EmployeeProfile() {
         api.getUsers(),
         api.getClientsRevenue({})
       ]);
-      const found = usersData.find(u => String(u.id) === String(id));
+      const found = usersData.find(u => String(u._id) === String(id));
       if (!found) { navigate('/admin'); return; }
       setUser(found);
       setRevenue(revData);
-      setBaseSalary(found.base_salary ?? 0);
+      setBaseSalary(found.baseSalary ?? 0);
       setForm({
         name: found.name || '',
         email: found.email || '',
         role: found.role || 'employee',
-        commission_percent: found.commission_percent ?? 0,
-        crm_access: found.crm_access === 'all'
+        commission_percent: found.commissionPercent ?? 0,
+        crm_access: found.crmAccess === 'all'
           ? 'all'
-          : (() => { try { return JSON.parse(found.crm_access); } catch { return 'all'; } })(),
+          : (() => { try { return JSON.parse(found.crmAccess); } catch { return 'all'; } })(),
         active: Boolean(found.active),
       });
       setCrmCommissions(found.crm_commissions || {});
@@ -151,14 +151,16 @@ export default function EmployeeProfile() {
     setSaving(true);
     try {
       await api.updateUser(id, {
-        ...form,
-        crm_access: form.crm_access === 'all' ? 'all' : JSON.stringify(form.crm_access),
-        commission_percent: parseFloat(form.commission_percent) || 0,
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        commissionPercent: parseFloat(form.commission_percent) || 0,
+        crmAccess: form.crm_access === 'all' ? 'all' : JSON.stringify(form.crm_access),
         active: form.active ? 1 : 0,
       });
       toast.success('Perfil atualizado com sucesso');
       // Se editou o próprio usuário logado, atualiza o contexto de auth
-      if (String(currentUser?.id) === String(id)) {
+      if (String(currentUser?._id) === String(id)) {
         await refreshUser();
       }
       loadData();
@@ -273,8 +275,8 @@ export default function EmployeeProfile() {
                 className="relative block"
                 title="Clique para alterar foto"
               >
-                {user?.photo_url ? (
-                  <img src={user.photo_url} className="w-16 h-16 rounded-2xl object-cover shadow-md" alt={form.name} />
+                {user?.photoUrl ? (
+                  <img src={user.photoUrl} className="w-16 h-16 rounded-2xl object-cover shadow-md" alt={form.name} />
                 ) : (
                   <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center font-serif font-bold text-2xl text-white shadow-md"

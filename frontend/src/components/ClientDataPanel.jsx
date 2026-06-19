@@ -13,13 +13,13 @@ export default function ClientDataPanel({ contact, onUpdate }) {
       const data = {
         address: contact.address,
         profession: contact.profession,
-        monthly_income: contact.monthly_income,
-        marital_status: contact.marital_status,
-        birth_date: contact.birth_date,
+        monthlyIncome: contact.monthlyIncome,
+        maritalStatus: contact.maritalStatus,
+        birthDate: contact.birthDate,
         age: contact.age,
         [field]: value
       };
-      const updated = await api.updatePersonal(contact.id, data);
+      const updated = await api.updatePersonal(contact._id, data);
       if (onUpdate) onUpdate(updated);
     } catch (e) {
       console.error(e);
@@ -56,7 +56,7 @@ export default function ClientDataPanel({ contact, onUpdate }) {
           </div>
           <div>
             <p className="label">Data de Nascimento</p>
-            <InlineField value={contact.birth_date} onSave={v => savePersonal('birth_date', v)} type="date" />
+            <InlineField value={contact.birthDate} onSave={v => savePersonal('birthDate', v)} type="date" />
           </div>
           <div>
             <p className="label">Idade</p>
@@ -64,7 +64,7 @@ export default function ClientDataPanel({ contact, onUpdate }) {
           </div>
           <div>
             <p className="label">Estado Civil</p>
-            <InlineField value={contact.marital_status} onSave={v => savePersonal('marital_status', v)} placeholder="Não informado" />
+            <InlineField value={contact.maritalStatus} onSave={v => savePersonal('maritalStatus', v)} placeholder="Não informado" />
           </div>
           <div>
             <p className="label">Profissão</p>
@@ -72,7 +72,7 @@ export default function ClientDataPanel({ contact, onUpdate }) {
           </div>
           <div>
             <p className="label">Renda Mensal</p>
-            <InlineField value={contact.monthly_income} onSave={v => savePersonal('monthly_income', parseFloat(v))} type="number" prefix="R$ " placeholder="0" />
+            <InlineField value={contact.monthlyIncome} onSave={v => savePersonal('monthlyIncome', parseFloat(v))} type="number" prefix="R$ " placeholder="0" />
           </div>
           <div className="col-span-2">
             <p className="label">Endereço</p>

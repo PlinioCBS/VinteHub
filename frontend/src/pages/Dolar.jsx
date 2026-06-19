@@ -121,7 +121,7 @@ export default function Dolar() {
         <div className="card p-5 flex flex-col gap-1">
           <p className="label">AUM Total (USD)</p>
           <p className="font-serif text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{fmtUSD(totalUSD)}</p>
-          <p className="text-xs text-charcoal/40">{clients.filter(c => (c.aum_usd || 0) > 0).length} clientes com posição</p>
+          <p className="text-xs text-charcoal/40">{clients.filter(c => (c.aumUsd || 0) > 0).length} clientes com posição</p>
         </div>
         <div className="card p-5 flex flex-col gap-1">
           <p className="label">Equivalente BRL</p>
@@ -191,11 +191,11 @@ export default function Dolar() {
                 </td>
               </tr>
             ) : filtered.map((c, i) => {
-              const aumUsd = c.aum_usd || 0;
+              const aumUsd = c.aumUsd || 0;
               const equivBRL = aumUsd * cotacao;
               return (
                 <tr
-                  key={c.id}
+                  key={c._id}
                   className="border-t hover:bg-gray-50/60 transition-colors"
                   style={{ borderColor: '#f0eeeb' }}
                 >
@@ -205,7 +205,7 @@ export default function Dolar() {
                   <td className="px-5 py-3 font-sans text-sm text-gray-500">{c.phone || '—'}</td>
                   <td className="px-5 py-3 font-sans text-sm text-gray-500">{c.company || '—'}</td>
                   <td className="px-5 py-3 text-right">
-                    <EditableUSD value={aumUsd} onSave={(v) => handleSaveUSD(c.id, v)} />
+                    <EditableUSD value={aumUsd} onSave={(v) => handleSaveUSD(c._id, v)} />
                   </td>
                   <td className="px-5 py-3 text-right font-sans text-sm font-semibold" style={{ color: aumUsd > 0 ? 'var(--text-primary)' : 'var(--text-hint)' }}>
                     {aumUsd > 0 ? fmtBRL(equivBRL) : '—'}
@@ -219,10 +219,10 @@ export default function Dolar() {
               <tr>
                 <td colSpan={3} className="px-5 py-3 font-sans text-xs font-bold uppercase tracking-wide text-gray-500">Total</td>
                 <td className="px-5 py-3 text-right font-serif font-bold text-base" style={{ color: 'var(--text-primary)' }}>
-                  {fmtUSD(filtered.reduce((s, c) => s + (c.aum_usd || 0), 0))}
+                  {fmtUSD(filtered.reduce((s, c) => s + (c.aumUsd || 0), 0))}
                 </td>
                 <td className="px-5 py-3 text-right font-serif font-bold text-base text-green">
-                  {fmtBRL(filtered.reduce((s, c) => s + ((c.aum_usd || 0) * cotacao), 0))}
+                  {fmtBRL(filtered.reduce((s, c) => s + ((c.aumUsd || 0) * cotacao), 0))}
                 </td>
               </tr>
             </tfoot>
