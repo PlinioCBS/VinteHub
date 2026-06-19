@@ -83,8 +83,12 @@ export function useDeleteDeal() {
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
 export function useTasks(overrides = {}) {
-  const base = useBaseArgs();
-  return useQuery(api.tasks.list, { ...base, ...overrides }) ?? [];
+  const { user } = useAuth();
+  return useQuery(api.tasks.list, {
+    userId: user?._id ?? undefined,
+    isMaster: user?.role === 'master',
+    ...overrides,
+  }) ?? [];
 }
 
 export function useCreateTask() {
