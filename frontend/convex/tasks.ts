@@ -7,6 +7,7 @@ export const list = query({
     userId: v.optional(v.id("users")),
     status: v.optional(v.string()),
     isMaster: v.optional(v.boolean()),
+    crmType: v.optional(v.string()),
   },
   handler: async (ctx, { contactId, userId, status, isMaster }) => {
     let tasks = await ctx.db.query("tasks").collect();
